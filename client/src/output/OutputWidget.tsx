@@ -1,76 +1,50 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { ArtworkPreview } from "./ArtworkPreview";
 import { DraftPanel } from "./DraftPanel";
-import { InboxPanel } from "./InboxPanel";
-import { JobCard } from "./JobCard";
-import { ShopPanel } from "./ShopPanel";
-import type { Notice } from "./types";
+import { formatSize, formatWhen, handoff, materialLine, materialUsed } from "./format";
+import type { Job } from "./types";
 import type { OutputController } from "./useOutput";
 
-const SEEN_KEY = "output.seen.notices";
+type Stage = "closed" | "requests" | "amount" | "more" | "send";
 
-function seenIds(): Set<string> {
-  try {
-    const parsed = JSON.parse(sessionStorage.getItem(SEEN_KEY) || "[]");
-    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function pingText(notice: Notice): string | null {
-  if (notice.kind === "offer") return "+1 job request";
-  if (notice.kind === "funded") return "+1 job";
-  return null;
+function figure(cents: number): string {
+  return (cents / 100).toFixed(2);
 }
 
 export function OutputWidget({ controller }: { controller: OutputController }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const seen = useRef(seenIds());
   const [dragging, setDragging] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const { snapshot, panel, collapsed, selection, selectedJob, notices } = view(controller);
-  const acceptCount = (snapshot?.jobs ?? []).filter((job) => job.phase === "offered" && !job.expired).length;
+  const [stage, setStage] = useState<Stage>("closed");
+  const [pick, setPick] = useState<string | null>(null);
+  const jobs = controller.snapshot?.jobs ?? [];
+  const offers = jobs.filter((job) => job.phase === "offered" && !job.expired);
+  const picked = offers.find((job) => job.id === pick) ?? offers[0] ?? null;
 
-  useEffect(() => {
-    if (panel === "closed") return;
-    const frame = requestAnimationFrame(() => {
-      document.getElementById("output-panel-title")?.focus({ preventScroll: true });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [panel, selection?.id, selection?.role]);
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      if (panel === "inbox") controller.closePanel();
-      else if (panel !== "closed") controller.backToInbox();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [panel, controller]);
-
-  useEffect(() => {
-    const fresh = notices.find((notice) => pingText(notice) && !seen.current.has(notice.id));
-    if (!fresh) return;
-    seen.current.add(fresh.id);
-    sessionStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(seen.current)));
-    setToast(pingText(fresh));
-    const timer = window.setTimeout(() => setToast(null), 4000);
-    return () => window.clearTimeout(timer);
-  }, [notices]);
-
-  function pick() {
-    fileRef.current?.click();
+  function close() {
+    setStage("closed");
+    setPick(null);
+    controller.closePanel();
   }
 
-  function openList() {
-    setToast(null);
-    controller.openInbox();
+  function showRequests() {
+    setPick(null);
+    setStage((current) => (current === "requests" ? "closed" : "requests"));
+  }
+
+  function showAmount(job: Job) {
+    setPick(job.id);
+    setStage("amount");
+  }
+
+  function send() {
+    setPick(null);
+    setStage("send");
+    controller.openSend();
   }
 
   return (
     <div
-      className={`output-anchor${panel !== "closed" ? " open" : ""}${dragging ? " dragging" : ""}`}
+      className={`output-anchor${stage !== "closed" ? " open" : ""}${dragging ? " dragging" : ""}`}
       onDragEnter={(event) => {
         event.preventDefault();
         setDragging(true);
@@ -84,61 +58,52 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
         setDragging(false);
         const file = event.dataTransfer.files?.[0];
         if (file) void controller.takeFile(file);
+        if (file) setStage("send");
       }}
     >
-      {toast && (
-        <button type="button" className="toast" onClick={openList}>
-          {toast}
-        </button>
-      )}
-      {dragging && <p className="drop-hint">Drop an SVG to start a job. Cutline required, 5 MB max.</p>}
-      {panel === "inbox" && <InboxPanel controller={controller} />}
-      {panel === "draft" && <DraftPanel controller={controller} onPick={pick} />}
-      {panel === "shop" && <ShopPanel controller={controller} />}
-      {panel === "job" && selectedJob && selection && (
-        <JobCard key={`${selectedJob.id}-${selection.role}`} controller={controller} job={selectedJob} role={selection.role} />
-      )}
-      {panel === "job" && !selectedJob && (
-        <section className="output-panel">
-          <h2 id="output-panel-title" tabIndex={-1}>
-            Job
-          </h2>
-          <p>That job is not on this list.</p>
-          <button type="button" onClick={controller.backToInbox}>
-            Inbox
-          </button>
-        </section>
-      )}
-      <div className={`output-strip${collapsed ? " collapsed" : ""}`}>
-        <button
-          type="button"
-          className="mark"
-          aria-expanded={panel !== "closed"}
-          aria-label={panel === "closed" ? "Open job inbox" : "Close OUTPUT"}
-          onClick={controller.openOutput}
-        >
-          OUTPUT
-        </button>
-        {!collapsed && (
-          <span className="strip-actions">
-            {acceptCount > 0 && (
-              <button type="button" className="ping" onClick={openList} aria-label={`${acceptCount} to accept`}>
-                +{acceptCount}
+      <div className="output-shell">
+        {dragging && <p className="drop-hint">SVG with a cut line.</p>}
+        {stage === "requests" && (
+          <div className="layer">
+            {offers.length === 0 && <p className="fine">No jobs.</p>}
+            {offers.map((job) => (
+              <button key={job.id} type="button" className="request-line" onClick={() => showAmount(job)}>
+                + job request
               </button>
-            )}
-            <button type="button" className="send" onClick={controller.openSend} aria-label="Send a job. SVG contour-cut decals, 5 MB maximum.">
-              Send ↑
-            </button>
-          </span>
+            ))}
+          </div>
         )}
-        <button
-          type="button"
-          className="fold"
-          aria-label={collapsed ? "Expand" : "Collapse"}
-          onClick={controller.toggleCollapsed}
-        >
-          {collapsed ? "›" : "‹"}
-        </button>
+        {stage === "amount" && picked && (
+          <div className="layer">
+            <p className="win" aria-label={`You receive ${figure(picked.payoutCents)} USDC, devnet, after release`}>
+              <strong>{figure(picked.payoutCents)}</strong>
+              <span>devnet</span>
+            </p>
+            <button type="button" className="more" onClick={() => setStage("more")}>
+              More
+            </button>
+          </div>
+        )}
+        {stage === "more" && picked && <More job={picked} controller={controller} />}
+        {stage === "send" && <DraftPanel controller={controller} onPick={() => fileRef.current?.click()} />}
+        <div className="output-strip" role="toolbar" aria-label="OUTPUT">
+          <button type="button" className="mark" onClick={close} aria-label="Close">
+            OUTPUT
+          </button>
+          <button
+            type="button"
+            className="ping"
+            onClick={showRequests}
+            disabled={offers.length === 0}
+            aria-expanded={stage === "requests" || stage === "amount" || stage === "more"}
+            aria-label={offers.length === 0 ? "No incoming jobs" : `${offers.length} incoming`}
+          >
+            {offers.length > 0 ? `+${offers.length}` : ""}
+          </button>
+          <button type="button" className="send" onClick={send} aria-label="Send a job. SVG with a cut line, 5 MB maximum.">
+            Send
+          </button>
+        </div>
       </div>
       <input
         ref={fileRef}
@@ -150,20 +115,40 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
         onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = "";
-          if (file) void controller.takeFile(file);
+          if (file) {
+            setStage("send");
+            void controller.takeFile(file);
+          }
         }}
       />
     </div>
   );
 }
 
-function view(controller: OutputController) {
-  return {
-    snapshot: controller.snapshot,
-    panel: controller.panel,
-    collapsed: controller.collapsed,
-    selection: controller.selection,
-    selectedJob: controller.selectedJob,
-    notices: controller.snapshot?.notices ?? [],
-  };
+function More({ job, controller }: { job: Job; controller: OutputController }) {
+  const busy = controller.pending !== null;
+  return (
+    <div className="layer">
+      <p className="win" aria-label={`You receive ${figure(job.payoutCents)} USDC`}>
+        <strong>{figure(job.payoutCents)}</strong>
+      </p>
+      <p className="line">
+        {formatSize(job.widthIn, job.heightIn)} · {job.quantity}
+      </p>
+      <p className="line">{materialLine(job.laminate)}</p>
+      <p className="line">{materialUsed(job)}</p>
+      <p className="line">{formatWhen(job.deadline)}</p>
+      <p className="line">{handoff(job.fulfillment)}</p>
+      <ArtworkPreview model={job.preview} expanded={false} onToggle={() => undefined} bare />
+      {job.cardError && <p className="err">{job.cardError.message}</p>}
+      <div className="action-row">
+        <button type="button" className="primary" disabled={busy} onClick={() => void controller.accept(job)}>
+          {controller.pending === `accept:${job.id}` ? "Accepting…" : "Accept"}
+        </button>
+        <button type="button" disabled={busy} onClick={() => void controller.pass(job)}>
+          Pass
+        </button>
+      </div>
+    </div>
+  );
 }

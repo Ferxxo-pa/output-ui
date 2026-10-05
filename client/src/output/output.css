@@ -45,17 +45,78 @@
   right: 22px;
   bottom: 22px;
   z-index: 40;
-  width: max-content;
-  max-width: min(440px, calc(100vw - 24px));
+  width: 300px;
+  max-width: calc(100vw - 24px);
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
+  align-items: stretch;
+  gap: 0;
 }
 
-.output-anchor.open,
-.output-anchor.dragging {
-  width: min(440px, calc(100vw - 24px));
+.output-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.06);
+}
+
+.output-shell .layer {
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.output-shell .output-panel,
+.output-shell .drop-hint {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.output-shell .output-panel::before,
+.output-shell .drop-hint::before,
+.output-shell .output-strip::before {
+  display: none;
+}
+
+.request-line,
+.more {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  text-align: left;
+  font-weight: 560;
+  letter-spacing: -0.03em;
+}
+
+.win {
+  margin: 0;
+}
+
+.win strong {
+  display: block;
+  font-size: 28px;
+  font-weight: 560;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: #12c45a;
+  line-height: 1;
+}
+
+.win span,
+.line {
+  color: var(--mute);
+  font-size: 13px;
+}
+
+.line {
+  margin: 8px 0 0;
 }
 
 .output-anchor.open .output-panel,
@@ -80,14 +141,15 @@
 }
 
 .output-strip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 0 6px 0 14px;
-  background: rgba(255, 255, 255, 0.46);
-  backdrop-filter: blur(22px) saturate(1.35);
-  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: stretch;
+  min-height: 48px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .output-strip::before {
@@ -131,8 +193,20 @@
   color: #ff3b30;
 }
 
+.output-strip .mark,
+.output-strip .ping,
 .output-strip .send {
-  color: #f83090;
+  min-height: 48px;
+  text-align: center;
+}
+
+.output-strip .ping:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.output-strip .send {
+  color: #12c45a;
 }
 
 .output-strip .pulse {
@@ -173,9 +247,9 @@
 }
 
 .output-strip .ping {
-  color: #f83090;
+  color: var(--ink);
   font-weight: 560;
-  min-height: 36px;
+  min-height: 48px;
   letter-spacing: -0.03em;
 }
 

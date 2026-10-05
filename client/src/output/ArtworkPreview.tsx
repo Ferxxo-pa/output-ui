@@ -87,10 +87,12 @@ export function ArtworkPreview({
   model,
   expanded,
   onToggle,
+  bare = false,
 }: {
   model: PreviewModel;
   expanded: boolean;
   onToggle: () => void;
+  bare?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -126,10 +128,12 @@ export function ArtworkPreview({
           aria-label="Artwork preview. The magenta line is the cutline. The original SVG is not inserted into the page."
         />
       </div>
-      <figcaption>Cut line</figcaption>
-      <button type="button" onClick={onToggle}>
-        {expanded ? "Shrink artwork" : "Expand artwork"}
-      </button>
+      {!bare && <figcaption>Cut line</figcaption>}
+      {!bare && (
+        <button type="button" onClick={onToggle}>
+          {expanded ? "Shrink artwork" : "Expand artwork"}
+        </button>
+      )}
     </figure>
   );
 }
