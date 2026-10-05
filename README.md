@@ -1,3 +1,16 @@
+# I/O and OUTPUT
+
+I/O stays at `/`. OUTPUT, the print-shop job inbox, is at `/output`.
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:5000](http://localhost:5000) for I/O and [http://localhost:5000/output](http://localhost:5000/output) for OUTPUT. `npm run check` runs the TypeScript check.
+
+OUTPUT reuses this app's glass strip. It does not use clock-in, wages, points, or the Square book. With `VITE_OUTPUT_API_BASE` unset, OUTPUT is labeled **Demo data—no orders sent or money moved.** See `client/src/output/BACKEND.md` for the operations Ez Ink still has to connect. There is no installer.
+
 # I/O
 
 **Input vs Output.** A tiny trading-terminal strip that gamifies work.

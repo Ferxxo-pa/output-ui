@@ -607,3 +607,7 @@ a.company-code {
     bottom: 12px;
   }
 }
+
+body.output-page {
+  overflow: auto;
+}
