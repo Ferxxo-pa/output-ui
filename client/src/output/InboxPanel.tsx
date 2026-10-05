@@ -1,5 +1,40 @@
-import { groupJobs, phaseLabel, roleLabel } from "./format";
+import { formatUsdc, groupJobs, phaseLabel, roleLabel } from "./format";
+import type { Job, Role } from "./types";
 import type { OutputController } from "./useOutput";
+
+function JobButton({
+  job,
+  role,
+  onOpen,
+}: {
+  job: Job;
+  role: Role;
+  onOpen: () => void;
+}) {
+  const amount = rowAmount(job, role);
+  return (
+    <button type="button" className="job-row" onClick={onOpen}>
+      <span className="job-copy">
+        <span>{roleLabel(role)}</span>
+        <span>
+          {job.quantity} contour-cut decals · {phaseLabel(job, role)}
+        </span>
+      </span>
+      {amount && <span className={amount.tone}>{amount.text}</span>}
+    </button>
+  );
+}
+
+function rowAmount(job: Job, role: Role): { text: string; tone: "make" | "owe" } | null {
+  if (role === "producing") {
+    if (job.phase === "passed" || (job.expired && job.phase === "offered")) return null;
+    return { text: formatUsdc(job.payoutCents), tone: "make" };
+  }
+  if (job.phase === "accepted" || job.phase === "funding_pending" || job.phase === "completion_submitted") {
+    return { text: formatUsdc(job.priceCents), tone: "owe" };
+  }
+  return null;
+}
 
 export function InboxPanel({ controller }: { controller: OutputController }) {
   const { snapshot, loadError, openJob, openShop, closePanel, reload } = controller;
@@ -34,12 +69,7 @@ export function InboxPanel({ controller }: { controller: OutputController }) {
       <ul className="job-list">
         {groups.needs.map((card) => (
           <li key={`${card.job.id}-${card.role}`}>
-            <button type="button" className="job-row" onClick={() => openJob(card.job.id, card.role)}>
-              <span>{roleLabel(card.role)}</span>
-              <span>
-                {card.job.quantity} contour-cut decals · {phaseLabel(card.job, card.role)}
-              </span>
-            </button>
+            <JobButton job={card.job} role={card.role} onOpen={() => openJob(card.job.id, card.role)} />
           </li>
         ))}
       </ul>
@@ -48,12 +78,7 @@ export function InboxPanel({ controller }: { controller: OutputController }) {
       <ul className="job-list">
         {groups.progress.map((card) => (
           <li key={`${card.job.id}-${card.role}`}>
-            <button type="button" className="job-row" onClick={() => openJob(card.job.id, card.role)}>
-              <span>{roleLabel(card.role)}</span>
-              <span>
-                {card.job.quantity} contour-cut decals · {phaseLabel(card.job, card.role)}
-              </span>
-            </button>
+            <JobButton job={card.job} role={card.role} onOpen={() => openJob(card.job.id, card.role)} />
           </li>
         ))}
       </ul>
@@ -63,12 +88,7 @@ export function InboxPanel({ controller }: { controller: OutputController }) {
         <ul className="job-list">
           {groups.done.map((card) => (
             <li key={`${card.job.id}-${card.role}`}>
-              <button type="button" className="job-row" onClick={() => openJob(card.job.id, card.role)}>
-                <span>{roleLabel(card.role)}</span>
-                <span>
-                  {card.job.quantity} contour-cut decals · {phaseLabel(card.job, card.role)}
-                </span>
-              </button>
+              <JobButton job={card.job} role={card.role} onOpen={() => openJob(card.job.id, card.role)} />
             </li>
           ))}
         </ul>
