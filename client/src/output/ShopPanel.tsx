@@ -8,7 +8,7 @@ const PRESENCE_COPY = {
   stale: "Capacity is stale. Confirm it before new work.",
 } as const;
 
-export function ShopPanel({ controller }: { controller: OutputController }) {
+export function ShopPanel({ controller, onClose }: { controller: OutputController; onClose?: () => void }) {
   const {
     snapshot,
     loadError,
@@ -31,8 +31,8 @@ export function ShopPanel({ controller }: { controller: OutputController }) {
         <h2 id="output-panel-title" tabIndex={-1}>
           Shop
         </h2>
-        <button type="button" onClick={backToInbox}>
-          Inbox
+        <button type="button" onClick={onClose ?? backToInbox}>
+          {onClose ? "Close" : "Inbox"}
         </button>
       </header>
       {loadError && (

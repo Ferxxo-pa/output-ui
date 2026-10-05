@@ -387,10 +387,45 @@ function seedFromInspection(inspected: Extract<ReturnType<typeof inspectSvgText>
     updatedAt: created,
     createdAt: created,
   };
+  const workingSq = job.widthIn * job.heightIn * 12;
+  shop.inventory.vinyl.reservedSqIn += workingSq;
+  shop.inventory.laminate.reservedSqIn += workingSq;
+  const working: Job = {
+    ...job,
+    id: "job_seed_working",
+    phase: "funded",
+    requesterName: "June Park",
+    fileName: "window-mark.svg",
+    quantity: 12,
+    priceCents: 2800,
+    payoutCents: 2400,
+    reservation: { vinylSqIn: workingSq, laminateSqIn: workingSq },
+    downloaded: true,
+  };
+  const paid: Job = {
+    ...job,
+    id: "job_seed_paid",
+    phase: "paid",
+    requesterName: "Noah Velez",
+    fileName: "box-label.svg",
+    quantity: 8,
+    priceCents: 1800,
+    payoutCents: 1510,
+    consumed: true,
+    downloaded: true,
+    receipt: {
+      reference: "demo_paid_seed",
+      amountCents: 1510,
+      currency: "USDC",
+      network: "devnet",
+      simulated: true,
+      settledAt: created,
+    },
+  };
   return {
     version: 1,
     shop,
-    jobs: [job],
+    jobs: [job, working, paid],
     notices: [
       {
         id: "n_seed_offer",
@@ -405,6 +440,58 @@ function seedFromInspection(inspected: Extract<ReturnType<typeof inspectSvgText>
   };
 }
 
+function supplementLedger(state: Persisted): Persisted {
+  if (state.jobs.length !== 1 || state.jobs[0]?.id !== SEED_ID) return state;
+  if (state.jobs.some((job) => job.id === "job_seed_working" || job.id === "job_seed_paid")) return state;
+  const base = state.jobs[0];
+  const created = base.createdAt;
+  const workingSq = base.widthIn * base.heightIn * 12;
+  const shop = {
+    ...state.shop,
+    inventory: {
+      vinyl: { ...state.shop.inventory.vinyl, reservedSqIn: state.shop.inventory.vinyl.reservedSqIn + workingSq },
+      laminate: {
+        ...state.shop.inventory.laminate,
+        reservedSqIn: state.shop.inventory.laminate.reservedSqIn + workingSq,
+      },
+    },
+  };
+  const working: Job = {
+    ...base,
+    id: "job_seed_working",
+    phase: "funded",
+    requesterName: "June Park",
+    fileName: "window-mark.svg",
+    quantity: 12,
+    priceCents: 2800,
+    payoutCents: 2400,
+    reservation: { vinylSqIn: workingSq, laminateSqIn: workingSq },
+    downloaded: true,
+  };
+  const paid: Job = {
+    ...base,
+    id: "job_seed_paid",
+    phase: "paid",
+    requesterName: "Noah Velez",
+    fileName: "box-label.svg",
+    quantity: 8,
+    priceCents: 1800,
+    payoutCents: 1510,
+    reservation: null,
+    consumed: true,
+    downloaded: true,
+    receipt: {
+      reference: "demo_paid_seed",
+      amountCents: 1510,
+      currency: "USDC",
+      network: "devnet",
+      simulated: true,
+      settledAt: created,
+    },
+  };
+  return { ...state, shop, jobs: [base, working, paid] };
+}
+
 async function ensure(): Promise<Persisted> {
   const current = read();
   if (current === "bad") {
@@ -414,7 +501,11 @@ async function ensure(): Promise<Persisted> {
       "reconnecting",
     );
   }
-  if (current !== "missing") return current;
+  if (current !== "missing") {
+    const supplemented = supplementLedger(current);
+    if (supplemented !== current) save(supplemented);
+    return supplemented;
+  }
   const inspected = inspectSvgText("mara-decal.svg", SEED_SVG);
   if (!inspected.ok) throw new OutputOperationError("loadSnapshot", inspected.correction, "seed");
   const seeded = seedFromInspection(inspected);
