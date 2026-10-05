@@ -13,18 +13,17 @@ export function DraftPanel({ controller, onPick }: { controller: OutputControlle
     <section className="output-panel" aria-labelledby="output-panel-title">
       <header className="panel-head">
         <h2 id="output-panel-title" tabIndex={-1}>
-          New job
+          Insert a file
         </h2>
         <button type="button" onClick={backToInbox}>
           Inbox
         </button>
       </header>
-      {snapshot?.banner && <p className="demo-banner">{snapshot.banner}</p>}
       <p className="spec">SVG with a cut line. {MATERIAL_LABEL}. 5 MB. No PDF or AI.</p>
       {!draft.preview && (
         <div className="stack">
           <button type="button" className="primary" onClick={onPick}>
-            Choose file
+            Insert a file
           </button>
           <p className="fine">Or drop an SVG on this widget.</p>
         </div>

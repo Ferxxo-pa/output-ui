@@ -35,7 +35,6 @@ export function ShopPanel({ controller }: { controller: OutputController }) {
           Inbox
         </button>
       </header>
-      {snapshot?.banner && <p className="demo-banner">{snapshot.banner}</p>}
       {loadError && (
         <div className="err" role="alert">
           <p>{loadError}</p>

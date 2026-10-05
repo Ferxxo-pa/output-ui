@@ -1,44 +1,14 @@
-import { formatSize, formatUsdc, groupJobs, phaseLabel, roleLabel } from "./format";
-import type { Job, Role } from "./types";
+import { formatSize, materialLine } from "./format";
+import type { Job } from "./types";
 import type { OutputController } from "./useOutput";
 
-function JobButton({
-  job,
-  role,
-  onOpen,
-}: {
-  job: Job;
-  role: Role;
-  onOpen: () => void;
-}) {
-  const amount = rowAmount(job, role);
-  return (
-    <button type="button" className="job-row" onClick={onOpen}>
-      <span className="job-copy">
-        <span>{roleLabel(role)}</span>
-        <span>
-          {job.quantity} · {formatSize(job.widthIn, job.heightIn)} · {phaseLabel(job, role)}
-        </span>
-      </span>
-      {amount && <span className={amount.tone}>{amount.text}</span>}
-    </button>
-  );
-}
-
-function rowAmount(job: Job, role: Role): { text: string; tone: "make" | "owe" } | null {
-  if (role === "producing") {
-    if (job.phase === "passed" || (job.expired && job.phase === "offered")) return null;
-    return { text: formatUsdc(job.payoutCents), tone: "make" };
-  }
-  if (job.phase === "accepted" || job.phase === "funding_pending" || job.phase === "completion_submitted") {
-    return { text: formatUsdc(job.priceCents), tone: "owe" };
-  }
-  return null;
+function money(cents: number): string {
+  return (cents / 100).toFixed(2);
 }
 
 export function InboxPanel({ controller }: { controller: OutputController }) {
   const { snapshot, loadError, openJob, openShop, closePanel, reload } = controller;
-  const groups = groupJobs(snapshot?.jobs ?? []);
+  const jobs = (snapshot?.jobs ?? []).filter((job) => job.phase === "offered" && !job.expired);
 
   return (
     <section className="output-panel" aria-labelledby="output-panel-title">
@@ -55,7 +25,6 @@ export function InboxPanel({ controller }: { controller: OutputController }) {
           </button>
         </span>
       </header>
-      {snapshot?.banner && <p className="demo-banner">{snapshot.banner}</p>}
       {loadError && (
         <div className="err" role="alert">
           <p>{loadError}</p>
@@ -64,35 +33,31 @@ export function InboxPanel({ controller }: { controller: OutputController }) {
           </button>
         </div>
       )}
-      <h3>Needs you</h3>
-      {groups.needs.length === 0 && <p className="fine">Nothing needs you.</p>}
+      {jobs.length === 0 && <p className="fine">No jobs to accept.</p>}
       <ul className="job-list">
-        {groups.needs.map((card) => (
-          <li key={`${card.job.id}-${card.role}`}>
-            <JobButton job={card.job} role={card.role} onOpen={() => openJob(card.job.id, card.role)} />
+        {jobs.map((job) => (
+          <li key={job.id}>
+            <JobRow job={job} onOpen={() => openJob(job.id, "producing")} />
           </li>
         ))}
       </ul>
-      <h3>In progress</h3>
-      {groups.progress.length === 0 && <p className="fine">Nothing in progress.</p>}
-      <ul className="job-list">
-        {groups.progress.map((card) => (
-          <li key={`${card.job.id}-${card.role}`}>
-            <JobButton job={card.job} role={card.role} onOpen={() => openJob(card.job.id, card.role)} />
-          </li>
-        ))}
-      </ul>
-      <details className="done">
-        <summary>Completed · {groups.done.length}</summary>
-        {groups.done.length === 0 && <p className="fine">Nothing completed.</p>}
-        <ul className="job-list">
-          {groups.done.map((card) => (
-            <li key={`${card.job.id}-${card.role}`}>
-              <JobButton job={card.job} role={card.role} onOpen={() => openJob(card.job.id, card.role)} />
-            </li>
-          ))}
-        </ul>
-      </details>
     </section>
+  );
+}
+
+function JobRow({ job, onOpen }: { job: Job; onOpen: () => void }) {
+  return (
+    <button type="button" className="job-row" onClick={onOpen}>
+      <span className="job-copy">
+        <span>You're producing</span>
+        <span>
+          {materialLine(job.laminate)} · {formatSize(job.widthIn, job.heightIn)}
+        </span>
+      </span>
+      <span className="make">
+        <strong>{money(job.payoutCents)}</strong>
+        <small>USDC</small>
+      </span>
+    </button>
   );
 }

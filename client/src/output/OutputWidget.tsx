@@ -3,12 +3,33 @@ import { DraftPanel } from "./DraftPanel";
 import { InboxPanel } from "./InboxPanel";
 import { JobCard } from "./JobCard";
 import { ShopPanel } from "./ShopPanel";
+import type { Notice } from "./types";
 import type { OutputController } from "./useOutput";
+
+const SEEN_KEY = "output.seen.notices";
+
+function seenIds(): Set<string> {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(SEEN_KEY) || "[]");
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function pingText(notice: Notice): string | null {
+  if (notice.kind === "offer") return "+1 job request";
+  if (notice.kind === "funded") return "+1 job";
+  return null;
+}
 
 export function OutputWidget({ controller }: { controller: OutputController }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const seen = useRef(seenIds());
   const [dragging, setDragging] = useState(false);
-  const { mode, snapshot, panel, collapsed, selection, selectedJob, status, attention, presence, notices } = view(controller);
+  const [toast, setToast] = useState<string | null>(null);
+  const { snapshot, panel, collapsed, selection, selectedJob, notices } = view(controller);
+  const acceptCount = (snapshot?.jobs ?? []).filter((job) => job.phase === "offered" && !job.expired).length;
 
   useEffect(() => {
     if (panel === "closed") return;
@@ -28,8 +49,23 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [panel, controller]);
 
+  useEffect(() => {
+    const fresh = notices.find((notice) => pingText(notice) && !seen.current.has(notice.id));
+    if (!fresh) return;
+    seen.current.add(fresh.id);
+    sessionStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(seen.current)));
+    setToast(pingText(fresh));
+    const timer = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [notices]);
+
   function pick() {
     fileRef.current?.click();
+  }
+
+  function openList() {
+    setToast(null);
+    controller.openInbox();
   }
 
   return (
@@ -50,18 +86,11 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
         if (file) void controller.takeFile(file);
       }}
     >
-      <div className="notices" aria-live="polite">
-        {notices.map((notice) => (
-          <div className={`notice ${notice.kind}`} key={notice.id}>
-            <button type="button" className="notice-open" onClick={() => controller.openNotice(notice)}>
-              {notice.text}
-            </button>
-            <button type="button" onClick={() => void controller.dismissNotice(notice.id)} aria-label="Dismiss notification">
-              Dismiss
-            </button>
-          </div>
-        ))}
-      </div>
+      {toast && (
+        <button type="button" className="toast" onClick={openList}>
+          {toast}
+        </button>
+      )}
       {dragging && <p className="drop-hint">Drop an SVG to start a job. Cutline required, 5 MB max.</p>}
       {panel === "inbox" && <InboxPanel controller={controller} />}
       {panel === "draft" && <DraftPanel controller={controller} onPick={pick} />}
@@ -90,17 +119,17 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
         >
           OUTPUT
         </button>
-        {mode === "fixture" && <span className="demo-mark">Demo</span>}
         {!collapsed && (
-          <span className={`status${attention > 0 ? " hot" : ""}`} role="status">
-            {status}
+          <span className="strip-actions">
+            {acceptCount > 0 && (
+              <button type="button" className="ping" onClick={openList} aria-label={`${acceptCount} to accept`}>
+                +{acceptCount}
+              </button>
+            )}
+            <button type="button" className="send" onClick={controller.openSend} aria-label="Send a job. SVG contour-cut decals, 5 MB maximum.">
+              Send ↑
+            </button>
           </span>
-        )}
-        <i className={`pulse ${attention > 0 ? "hot" : presence}`} aria-hidden="true" />
-        {!collapsed && (
-          <button type="button" className="send" onClick={controller.openSend} aria-label="Send a job. SVG contour-cut decals, 5 MB maximum.">
-            Send ↑
-          </button>
         )}
         <button
           type="button"
@@ -124,22 +153,17 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
           if (file) void controller.takeFile(file);
         }}
       />
-      {snapshot?.banner && panel === "closed" && <p className="demo-banner">{snapshot.banner}</p>}
     </div>
   );
 }
 
 function view(controller: OutputController) {
   return {
-    mode: controller.mode,
     snapshot: controller.snapshot,
     panel: controller.panel,
     collapsed: controller.collapsed,
     selection: controller.selection,
     selectedJob: controller.selectedJob,
-    status: controller.status,
-    attention: controller.attention,
-    presence: controller.snapshot?.shop?.presence ?? "disconnected",
     notices: controller.snapshot?.notices ?? [],
   };
 }

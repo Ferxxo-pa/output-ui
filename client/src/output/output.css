@@ -84,7 +84,7 @@
   align-items: center;
   gap: 12px;
   min-height: 44px;
-  padding: 0 6px 8px 14px;
+  padding: 0 6px 0 14px;
   background: rgba(255, 255, 255, 0.46);
   backdrop-filter: blur(22px) saturate(1.35);
   -webkit-backdrop-filter: blur(22px) saturate(1.35);
@@ -162,8 +162,32 @@
 
 .output-strip .fold {
   width: 28px;
-  margin-left: auto;
   color: var(--mute);
+}
+
+.strip-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.output-strip .ping {
+  color: #f83090;
+  font-weight: 560;
+  min-height: 36px;
+  letter-spacing: -0.03em;
+}
+
+.toast {
+  align-self: flex-end;
+  padding: 2px 2px 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  font-weight: 560;
+  letter-spacing: -0.03em;
+  font-size: 14px;
 }
 
 .output-strip.collapsed .fold {
@@ -330,6 +354,10 @@
   align-self: center;
 }
 
+.output-panel .stack .primary {
+  align-self: flex-start;
+}
+
 .output-root button:disabled,
 .output-root input:disabled {
   opacity: 0.45;
@@ -494,7 +522,23 @@
 }
 
 .job-row .make {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   color: #12c45a;
+  line-height: 1;
+}
+
+.job-row .make strong {
+  font-size: 22px;
+  font-weight: 560;
+  letter-spacing: -0.04em;
+}
+
+.job-row .make small {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 450;
 }
 
 .make-line {
