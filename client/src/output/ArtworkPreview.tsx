@@ -101,7 +101,7 @@ export function ArtworkPreview({
     if (!wrap || !canvas) return;
     const draw = () => {
       const cssW = Math.max(wrap.clientWidth, 240);
-      const cssH = expanded ? 420 : 200;
+      const cssH = expanded ? 360 : 140;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.style.width = "100%";
       canvas.style.height = `${cssH}px`;

@@ -105,7 +105,7 @@
   width: max-content;
   align-self: flex-end;
   min-height: 32px;
-  gap: 2px;
+  gap: 8px;
   padding: 0 4px 0 12px;
 }
 
@@ -150,10 +150,20 @@
   line-height: 1.4;
 }
 
+.output-anchor.open {
+  max-height: calc(100vh - 28px);
+}
+
 .output-panel {
   max-height: min(72vh, 720px);
+  min-height: 0;
   overflow: auto;
   padding: 14px 14px 16px;
+}
+
+.output-anchor.open .output-panel {
+  flex: 1 1 auto;
+  max-height: calc(100vh - 168px);
 }
 
 .panel-head,
@@ -273,7 +283,15 @@
   font-size: 13px;
 }
 
-.output-root input,
+.output-root .check input,
+.output-root fieldset input {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  flex: none;
+}
+
+.output-root input:not([type="checkbox"]):not([type="radio"]),
 .output-root textarea {
   width: 100%;
   font: inherit;
@@ -410,6 +428,9 @@
   flex-direction: column;
   gap: 6px;
   align-items: stretch;
+  width: min(420px, calc(100vw - 24px));
+  max-height: 132px;
+  overflow: auto;
 }
 
 .notice {

@@ -13,7 +13,7 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
   useEffect(() => {
     if (panel === "closed") return;
     const frame = requestAnimationFrame(() => {
-      document.getElementById("output-panel-title")?.focus();
+      document.getElementById("output-panel-title")?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [panel, selection?.id, selection?.role]);

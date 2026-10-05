@@ -125,13 +125,15 @@ function paintOf(element: Element, inherited: Paint): Paint {
   const style = styleMap(element);
   const fill = sanitizeColor(style.fill ?? element.getAttribute("fill"));
   const stroke = sanitizeColor(style.stroke ?? element.getAttribute("stroke"));
-  const width = Number(style["stroke-width"] ?? element.getAttribute("stroke-width"));
-  const opacity = Number(style.opacity ?? element.getAttribute("opacity"));
+  const widthRaw = style["stroke-width"] ?? element.getAttribute("stroke-width");
+  const width = widthRaw == null || widthRaw === "" ? Number.NaN : Number(widthRaw);
+  const opacityRaw = style.opacity ?? element.getAttribute("opacity");
+  const opacity = opacityRaw == null || opacityRaw === "" ? Number.NaN : Number(opacityRaw);
   return {
     fill: fill ?? inherited.fill,
     stroke: stroke ?? inherited.stroke,
     strokeWidth: Number.isFinite(width) && width > 0 ? width : inherited.strokeWidth,
-    opacity: Number.isFinite(opacity) ? Math.min(1, Math.max(0, opacity)) : inherited.opacity,
+    opacity: Number.isFinite(opacity) ? Math.min(1, Math.max(0, inherited.opacity * opacity)) : inherited.opacity,
   };
 }
 
