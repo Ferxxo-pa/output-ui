@@ -397,7 +397,7 @@ function seedFromInspection(inspected: Extract<ReturnType<typeof inspectSvgText>
         jobId: job.id,
         role: "producing",
         kind: "offer",
-        text: "New offer to review. 20 contour-cut decals.",
+        text: "+1 job request",
         createdAt: created,
       },
     ],
@@ -516,7 +516,7 @@ export function createFixturePort(): OutputPort {
         jobId: job.id,
         role: "producing",
         kind: "offer",
-        text: `New offer to review. ${job.quantity} contour-cut decals.`,
+        text: "+1 job request",
         createdAt: created,
       });
       save(state);
@@ -668,7 +668,7 @@ export function createFixturePort(): OutputPort {
         jobId,
         role: "producing",
         kind: "funded",
-        text: "Funded job is ready for production.",
+        text: "+1 job",
         createdAt: current.updatedAt,
       });
       save(next);

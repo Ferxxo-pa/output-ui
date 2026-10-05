@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArtworkPreview } from "./ArtworkPreview";
-import { formatSize, formatUsdc, formatWhen, fromLocalInput, materialLine, phaseLabel, roleLabel, toLocalInput } from "./format";
+import { formatSize, formatUsdc, formatWhen, fromLocalInput, handoff, materialLine, materialUsed, phaseLabel, roleLabel, toLocalInput } from "./format";
 import { inspectSvgFile } from "./svg/inspect";
 import type { Job, QuoteInput, Role } from "./types";
 import type { OutputController } from "./useOutput";
@@ -129,26 +129,50 @@ export function JobCard({
         </button>
       </header>
       <p className="phase">{phaseLabel(job, role)}</p>
-      <ArtworkPreview model={job.preview} expanded={artExpanded} onToggle={toggleArt} />
-      <p className="ticket">
-        {job.quantity} · {formatSize(job.widthIn, job.heightIn)} · {materialLine(job.laminate)}
-      </p>
-      <p className="fine">
-        Due {formatWhen(job.deadline)} · Ready {formatWhen(job.readyBy)}
-      </p>
-      <p className="fine">
-        {ordering
-          ? `Pickup at ${job.shopName}. You pick up.`
-          : `Pickup. You hold them for ${job.requesterName}.`}{" "}
-        Not a delivery.
-      </p>
-      {ordering && (
-        <p className="fine">
-          {formatUsdc(job.priceCents)} · {job.network}
+      {!ordering && job.phase !== "passed" && !(job.expired && job.phase === "offered") && (
+        <p className="make-line">
+          <span>You receive</span>
+          <strong>{formatUsdc(job.payoutCents)}</strong>
+          <span>{job.phase === "paid" ? "Paid" : `${job.network} · after they release`}</span>
         </p>
       )}
+      <dl className="facts">
+        <div>
+          <dt>Size</dt>
+          <dd>{formatSize(job.widthIn, job.heightIn)}</dd>
+        </div>
+        <div>
+          <dt>Qty</dt>
+          <dd>{job.quantity}</dd>
+        </div>
+        <div>
+          <dt>Material</dt>
+          <dd>{materialLine(job.laminate)}</dd>
+        </div>
+        <div>
+          <dt>Used</dt>
+          <dd>{materialUsed(job)}</dd>
+        </div>
+        <div>
+          <dt>Due</dt>
+          <dd>{formatWhen(job.deadline)}</dd>
+        </div>
+        <div>
+          <dt>Handoff</dt>
+          <dd>{handoff(job.fulfillment)}</dd>
+        </div>
+        {ordering && (
+          <div>
+            <dt>Price</dt>
+            <dd>
+              {formatUsdc(job.priceCents)} · {job.network}
+            </dd>
+          </div>
+        )}
+      </dl>
+      <ArtworkPreview model={job.preview} expanded={artExpanded} onToggle={toggleArt} />
       {job.termsChanged && job.phase === "offered" && (
-        <p>Terms changed. Acceptance is required again. Earlier acceptance was cleared and capacity was released.</p>
+        <p>Terms changed. Accept again. Nothing is reserved.</p>
       )}
       {(job.cardError || localError) && (
         <div className="err" role="alert">
@@ -164,11 +188,6 @@ export function JobCard({
 
       {!ordering && job.phase === "offered" && !job.expired && (
         <>
-          <p className="make-line">
-            <span>You receive</span>
-            <strong>{formatUsdc(job.payoutCents)}</strong>
-            <span>{job.network} · after they release</span>
-          </p>
           <div className="action-row">
             <button type="button" className="primary" disabled={busy} onClick={() => void accept(job)}>
               {pending === `accept:${job.id}` ? "Accepting…" : "Accept job"}
@@ -183,7 +202,7 @@ export function JobCard({
         <p>Expired. Nothing was reserved. They need a new deadline.</p>
       )}
       {!ordering && (job.phase === "accepted" || job.phase === "funding_pending") && (
-        <p>Waiting for funding—do not produce yet. You receive {formatUsdc(job.payoutCents)} ({job.network}) after funding.</p>
+        <p>Waiting for funding—do not produce yet.</p>
       )}
       {!ordering && (job.phase === "funded" || job.phase === "issue") && (
         <div className="stack">
@@ -192,9 +211,6 @@ export function JobCard({
               Production issue: {job.issueNote}
             </p>
           )}
-          <p className="fine">
-            You receive {formatUsdc(job.payoutCents)} ({job.network}) when they release it.
-          </p>
           <button type="button" className="primary" disabled={busy} onClick={() => void download(job)}>
             {pending === `download:${job.id}` ? "Preparing file…" : "Download production file"}
           </button>
@@ -231,7 +247,7 @@ export function JobCard({
       )}
       {!ordering && job.phase === "completion_submitted" && (
         <p>
-          You receive {formatUsdc(job.payoutCents)} ({job.network}) if they approve. Not paid yet.
+          Waiting on their review. Not paid yet.
         </p>
       )}
       {!ordering && job.phase === "passed" && <p>You passed. Nothing was reserved.</p>}
@@ -410,6 +426,27 @@ export function JobCard({
       )}
       <details>
         <summary>Details</summary>
+        <dl className="facts">
+          <div>
+            <dt>Cut line</dt>
+            <dd>{job.cutlineName}</dd>
+          </div>
+          <div>
+            <dt>Ready</dt>
+            <dd>{formatWhen(job.readyBy)}</dd>
+          </div>
+          <div>
+            <dt>{ordering ? "Shop" : "From"}</dt>
+            <dd>{ordering ? `${job.shopName}, ${job.destination}` : job.requesterName}</dd>
+          </div>
+          <div>
+            <dt>File</dt>
+            <dd>{job.fileName}</dd>
+          </div>
+        </dl>
+        <p className="fine">
+          {job.fulfillment === "delivery" ? "Shipping." : `Pickup at ${job.destination}. Not shipped.`}
+        </p>
         <ul>
           {job.checks.map((check) => (
             <li key={check}>{check}</li>

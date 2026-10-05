@@ -58,6 +58,15 @@ export function materialLine(laminate: boolean): string {
   return laminate ? `${MATERIAL_LABEL} · ${LAMINATE_LABEL}` : MATERIAL_LABEL;
 }
 
+export function materialUsed(job: { widthIn: number; heightIn: number; quantity: number; laminate: boolean }): string {
+  const sq = formatInches(job.widthIn * job.heightIn * job.quantity);
+  return job.laminate ? `${sq} sq in vinyl · ${sq} sq in laminate` : `${sq} sq in vinyl`;
+}
+
+export function handoff(fulfillment: "pickup" | "delivery"): string {
+  return fulfillment === "delivery" ? "Shipping" : "Pickup";
+}
+
 export function requiredMaterial(laminate: boolean): string {
   return laminate ? `${MATERIAL_LABEL} and ${LAMINATE_LABEL}` : MATERIAL_LABEL;
 }
