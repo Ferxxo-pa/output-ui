@@ -390,6 +390,11 @@ function seedFromInspection(inspected: Extract<ReturnType<typeof inspectSvgText>
   const workingSq = job.widthIn * job.heightIn * 12;
   shop.inventory.vinyl.reservedSqIn += workingSq;
   shop.inventory.laminate.reservedSqIn += workingSq;
+  const sendSq = Math.ceil(job.widthIn * job.heightIn * 4);
+  shop.inventory.vinyl.availableSqIn -= sendSq;
+  shop.inventory.laminate.availableSqIn -= sendSq;
+  shop.inventory.vinyl.reservedSqIn += sendSq;
+  shop.inventory.laminate.reservedSqIn += sendSq;
   const working: Job = {
     ...job,
     id: "job_seed_working",
@@ -422,10 +427,22 @@ function seedFromInspection(inspected: Extract<ReturnType<typeof inspectSvgText>
       settledAt: created,
     },
   };
+  const send: Job = {
+    ...job,
+    id: "job_seed_send",
+    phase: "accepted",
+    selfOrdered: true,
+    requesterName: "You",
+    fileName: "door-mark.svg",
+    quantity: 4,
+    priceCents: 1800,
+    payoutCents: 1530,
+    reservation: { vinylSqIn: sendSq, laminateSqIn: sendSq },
+  };
   return {
     version: 1,
     shop,
-    jobs: [job, working, paid],
+    jobs: [job, working, paid, send],
     notices: [
       {
         id: "n_seed_offer",
@@ -492,6 +509,47 @@ function supplementLedger(state: Persisted): Persisted {
   return { ...state, shop, jobs: [base, working, paid] };
 }
 
+function withSendSample(state: Persisted): Persisted {
+  if (state.jobs.some((job) => job.id === "job_seed_send")) return state;
+  const base = state.jobs.find((job) => job.id === SEED_ID);
+  if (!base) return state;
+  const sendSq = Math.ceil(base.widthIn * base.heightIn * 4);
+  if (state.shop.inventory.vinyl.availableSqIn < sendSq || state.shop.inventory.laminate.availableSqIn < sendSq) return state;
+  const send: Job = {
+    ...base,
+    id: "job_seed_send",
+    phase: "accepted",
+    selfOrdered: true,
+    requesterName: "You",
+    fileName: "door-mark.svg",
+    quantity: 4,
+    priceCents: 1800,
+    payoutCents: 1530,
+    reservation: { vinylSqIn: sendSq, laminateSqIn: sendSq },
+    consumed: false,
+    downloaded: false,
+    receipt: null,
+    cardError: null,
+  };
+  return {
+    ...state,
+    shop: {
+      ...state.shop,
+      inventory: {
+        vinyl: {
+          availableSqIn: state.shop.inventory.vinyl.availableSqIn - sendSq,
+          reservedSqIn: state.shop.inventory.vinyl.reservedSqIn + sendSq,
+        },
+        laminate: {
+          availableSqIn: state.shop.inventory.laminate.availableSqIn - sendSq,
+          reservedSqIn: state.shop.inventory.laminate.reservedSqIn + sendSq,
+        },
+      },
+    },
+    jobs: [...state.jobs, send],
+  };
+}
+
 async function ensure(): Promise<Persisted> {
   const current = read();
   if (current === "bad") {
@@ -502,7 +560,7 @@ async function ensure(): Promise<Persisted> {
     );
   }
   if (current !== "missing") {
-    const supplemented = supplementLedger(current);
+    const supplemented = withSendSample(supplementLedger(current));
     if (supplemented !== current) save(supplemented);
     return supplemented;
   }

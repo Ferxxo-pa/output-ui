@@ -267,6 +267,35 @@ export function useOutput() {
     });
   }
 
+  async function registerUpload(file: File): Promise<string | null> {
+    const inspected = await inspectSvgFile(file);
+    if (!inspected.ok) return inspected.correction;
+    const widthIn = inspected.widthIn && inspected.widthIn > 0 ? inspected.widthIn : 3;
+    const heightIn = inspected.heightIn && inspected.heightIn > 0 ? inspected.heightIn : 2;
+    const deadline = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+    const input: QuoteInput = {
+      fileName: inspected.fileName,
+      svgText: inspected.svgText,
+      preview: inspected.preview,
+      cutlineName: inspected.cutlineName,
+      quantity: 1,
+      widthIn,
+      heightIn,
+      laminate: false,
+      fulfillment: "pickup",
+      destination: snapshot?.shop?.location || "Pickup",
+      deadline,
+    };
+    const result = await run(
+      "register",
+      `register:${inspected.fileName}:${inspected.svgText.length}:${deadline}`,
+      (opId) => port.requestProduction(input, opId),
+    );
+    if (!result) return "Still finishing the last file.";
+    if (!result.committed) return result.message ?? "That file was not registered.";
+    return null;
+  }
+
   async function requestProduction() {
     if (!draft?.preview || !draft.cutlineName) return;
     const quantity = Number(draft.quantity);
@@ -372,6 +401,7 @@ export function useOutput() {
     openJob,
     openNotice,
     takeFile,
+    registerUpload,
     updateDraft,
     requestProduction,
     toggleArt: () => setArtExpanded((value) => !value),

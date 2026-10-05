@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { ArtworkPreview } from "./ArtworkPreview";
-import { DraftPanel } from "./DraftPanel";
 import { formatSize, formatWhen, handoff, materialLine, materialUsed } from "./format";
 import { ShopPanel } from "./ShopPanel";
 import type { Job } from "./types";
@@ -9,6 +8,7 @@ import type { OutputController } from "./useOutput";
 type Stage = "closed" | "ledger" | "offer" | "send" | "shop";
 
 const WORKING = new Set(["accepted", "funding_pending", "funded", "completion_submitted", "issue"]);
+const APPROVED_TO_SEND = new Set(["accepted", "funding_pending", "funded", "completion_submitted", "issue"]);
 
 function money(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -26,10 +26,14 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
   const [stage, setStage] = useState<Stage>("closed");
   const [pick, setPick] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const jobs = controller.snapshot?.jobs ?? [];
-  const offers = jobs.filter((job) => job.phase === "offered" && !job.expired);
-  const working = jobs.filter((job) => WORKING.has(job.phase));
-  const done = jobs.filter((job) => job.phase === "paid");
+  const offers = jobs.filter((job) => !job.selfOrdered && job.phase === "offered" && !job.expired);
+  const working = jobs.filter((job) => !job.selfOrdered && WORKING.has(job.phase));
+  const done = jobs.filter((job) => !job.selfOrdered && job.phase === "paid");
+  const registered = jobs.filter((job) => job.selfOrdered && job.phase === "offered" && !job.expired);
+  const approved = jobs.filter((job) => job.selfOrdered && APPROVED_TO_SEND.has(job.phase));
+  const sent = jobs.filter((job) => job.selfOrdered && job.phase === "paid");
   const made = done.reduce((sum, job) => sum + job.payoutCents, 0);
   const picked = offers.find((job) => job.id === pick) ?? offers[0] ?? null;
 
@@ -76,8 +80,14 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
 
   function upload() {
     setDetails(false);
+    setUploadError(null);
+    setStage((current) => (current === "send" ? "closed" : "send"));
+  }
+
+  function register(file: File) {
+    setUploadError(null);
     setStage("send");
-    controller.openSend();
+    void controller.registerUpload(file).then((message) => setUploadError(message));
   }
 
   return (
@@ -96,8 +106,7 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
         setDragging(false);
         const file = event.dataTransfer.files?.[0];
         if (!file) return;
-        setStage("send");
-        void controller.takeFile(file);
+        register(file);
       }}
     >
       <div className="output-shell">
@@ -138,18 +147,17 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
         {stage === "offer" && picked && (
           <div className="layer offer">
             <div className="offer-top">
-              <span className="job-name">{jobName(picked)}</span>
-              <span className="money">{money(picked.payoutCents)}</span>
-            </div>
-            <div className="offer-actions">
               <button
                 type="button"
                 className="accept"
                 disabled={controller.pending !== null}
                 onClick={() => void controller.accept(picked)}
               >
-                {controller.pending === `accept:${picked.id}` ? "…" : "accept?"}
+                {controller.pending === `accept:${picked.id}` ? "…" : "Accept"}
               </button>
+              <span className="money">{money(picked.payoutCents)}</span>
+            </div>
+            <div className="offer-actions">
               <button type="button" className="more" onClick={() => setDetails((open) => !open)} aria-expanded={details}>
                 more details
               </button>
@@ -158,7 +166,43 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
             {details && <Details job={picked} />}
           </div>
         )}
-        {stage === "send" && <DraftPanel controller={controller} onPick={() => fileRef.current?.click()} />}
+        {stage === "send" && (
+          <div className="layer ledger" aria-label="Upload">
+            <div className="ledger-head">
+              <span>Upload</span>
+            </div>
+            <button
+              type="button"
+              className="file-add"
+              disabled={controller.pending !== null}
+              onClick={() => fileRef.current?.click()}
+            >
+              {controller.pending === "register" ? "Registering…" : "Upload a file"}
+            </button>
+            {uploadError && <p className="err">{uploadError}</p>}
+            {registered.map((job) => (
+              <div key={job.id} className="job-row">
+                <span className="job-name">{jobName(job)}</span>
+                <span className="job-mid" />
+                <span className="registered">registered</span>
+              </div>
+            ))}
+            {approved.map((job) => (
+              <div key={job.id} className="job-row">
+                <span className="job-name">{jobName(job)}</span>
+                <span className="job-mid" />
+                <span className="money">{money(job.priceCents)}</span>
+              </div>
+            ))}
+            {sent.map((job) => (
+              <div key={job.id} className="job-row done">
+                <span className="job-name">{jobName(job)}</span>
+                <span className="job-mid" />
+                <span className="money">{money(job.priceCents)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {stage === "shop" && <ShopPanel controller={controller} onClose={() => setStage("closed")} />}
         <div className="output-strip" role="toolbar" aria-label="OUTPUT">
           <button type="button" className="mark" onClick={close}>
@@ -168,18 +212,24 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
             <button type="button" className="upload" onClick={upload}>
               upload
             </button>
-            <button type="button" className="gear" aria-label="Settings" onClick={() => setStage("shop")}>
+            <button
+              type="button"
+              className={`gear${stage === "shop" ? " on" : ""}`}
+              aria-label="Settings"
+              aria-pressed={stage === "shop"}
+              onClick={() => setStage((current) => (current === "shop" ? "closed" : "shop"))}
+            >
               <Gear />
             </button>
           </div>
         </div>
       </div>
-      {offers.length > 0 && (
+      {stage === "closed" && offers.length > 0 && (
         <button
           type="button"
           className="plus"
           onClick={openLedger}
-          aria-expanded={stage === "ledger"}
+              aria-expanded={false}
           aria-label={`${offers.length} incoming ${offers.length === 1 ? "job" : "jobs"}`}
         >
           +{offers.length}
@@ -196,8 +246,7 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
           const file = event.target.files?.[0];
           event.target.value = "";
           if (!file) return;
-          setStage("send");
-          void controller.takeFile(file);
+          register(file);
         }}
       />
     </div>
@@ -207,6 +256,7 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
 function Details({ job }: { job: Job }) {
   return (
     <div className="detail">
+      <p className="who">{jobName(job)}</p>
       <p>
         {formatSize(job.widthIn, job.heightIn)} · {job.quantity}
       </p>
@@ -227,10 +277,14 @@ function Details({ job }: { job: Job }) {
 
 function Gear() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.7" />
       <path
-        fill="currentColor"
-        d="M6.7 1.2h2.6l.4 1.6c.4.1.7.3 1 .5l1.5-.6 1.3 2.2-1.2 1.1c.1.3.1.7.1 1s0 .7-.1 1l1.2 1.1-1.3 2.2-1.5-.6c-.3.2-.6.4-1 .5l-.4 1.6H6.7l-.4-1.6c-.4-.1-.7-.3-1-.5l-1.5.6-1.3-2.2 1.2-1.1c-.1-.3-.1-.7-.1-1s0-.7.1-1L2.5 4.9l1.3-2.2 1.5.6c.3-.2.6-.4 1-.5l.4-1.6ZM8 6.2A1.8 1.8 0 1 0 8 9.8 1.8 1.8 0 0 0 8 6.2Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+        d="M19.4 13.1a7.6 7.6 0 0 0 .1-2.2l1.8-1.1-1.8-3.2-2.1.7a7.7 7.7 0 0 0-1.9-1.1L14.9 4h-5.8l-.6 2.2a7.7 7.7 0 0 0-1.9 1.1l-2.1-.7L2.7 9.8l1.8 1.1a7.6 7.6 0 0 0 .1 2.2l-1.8 1.1 1.8 3.2 2.1-.7a7.7 7.7 0 0 0 1.9 1.1l.6 2.2h5.8l.6-2.2a7.7 7.7 0 0 0 1.9-1.1l2.1.7 1.8-3.2-1.8-1.1Z"
       />
     </svg>
   );

@@ -816,16 +816,28 @@
 }
 
 .output-strip .gear {
-  width: 34px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  margin-right: 8px;
   display: grid;
   place-items: center;
   color: #1d1d1f;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: #fff;
+}
+
+.output-strip .gear.on {
+  background: #1d1d1f;
+  color: #fff;
+  border-color: #1d1d1f;
 }
 
 .output-anchor .plus {
   position: absolute;
-  right: 22px;
-  bottom: 34px;
+  right: 18px;
+  bottom: 46px;
   z-index: 5;
   min-width: 32px;
   height: 22px;
@@ -948,9 +960,20 @@
 
 .offer-actions {
   margin-top: 4px;
+  justify-content: flex-end;
 }
 
-.offer-actions .accept,
+.offer-top .accept {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #1d1d1f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 560;
+  letter-spacing: -0.02em;
+}
+
 .offer-actions .more {
   width: auto;
   min-height: 32px;
@@ -959,11 +982,6 @@
   border: 0;
   letter-spacing: -0.02em;
   font-size: 14px;
-}
-
-.offer-actions .accept {
-  font-weight: 560;
-  text-align: left;
 }
 
 .offer-actions .more {
@@ -978,11 +996,33 @@
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
+.detail .who {
+  font-weight: 560;
+}
+
 .detail p {
   margin: 0 0 4px;
   color: #1d1d1f;
   font-size: 13px;
   line-height: 1.35;
+}
+
+.file-add {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  padding: 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.registered {
+  flex: none;
+  color: #6e6e73;
+  font-size: 13px;
 }
 
 .detail .fine {
