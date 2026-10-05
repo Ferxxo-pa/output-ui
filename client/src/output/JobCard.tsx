@@ -170,7 +170,7 @@ export function JobCard({
         </div>
         <div>
           <dt>{ordering ? "Price" : "You receive"}</dt>
-          <dd>
+          <dd className={ordering ? undefined : "in"}>
             {formatUsdc(ordering ? job.priceCents : job.payoutCents)} ({job.network})
           </dd>
         </div>
@@ -337,7 +337,7 @@ export function JobCard({
             </div>
             <div>
               <dt>Amount</dt>
-              <dd>
+              <dd className="in">
                 {formatUsdc(job.receipt.amountCents)} ({job.receipt.network})
               </dd>
             </div>

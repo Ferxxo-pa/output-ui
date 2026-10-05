@@ -8,7 +8,7 @@ import type { OutputController } from "./useOutput";
 export function OutputWidget({ controller }: { controller: OutputController }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const { mode, snapshot, panel, collapsed, selection, selectedJob, status, notices } = view(controller);
+  const { mode, snapshot, panel, collapsed, selection, selectedJob, status, attention, presence, notices } = view(controller);
 
   useEffect(() => {
     if (panel === "closed") return;
@@ -52,7 +52,7 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
     >
       <div className="notices" aria-live="polite">
         {notices.map((notice) => (
-          <div className="notice" key={notice.id}>
+          <div className={`notice ${notice.kind}`} key={notice.id}>
             <button type="button" className="notice-open" onClick={() => controller.openNotice(notice)}>
               {notice.text}
             </button>
@@ -92,10 +92,11 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
         </button>
         {mode === "fixture" && <span className="demo-mark">Demo</span>}
         {!collapsed && (
-          <span className="status" role="status">
+          <span className={`status${attention > 0 ? " hot" : ""}`} role="status">
             {status}
           </span>
         )}
+        <i className={`pulse ${attention > 0 ? "hot" : presence}`} aria-hidden="true" />
         {!collapsed && (
           <button type="button" className="send" onClick={controller.openSend} aria-label="Send a job. SVG contour-cut decals, 5 MB maximum.">
             Send ↑
@@ -137,6 +138,8 @@ function view(controller: OutputController) {
     selection: controller.selection,
     selectedJob: controller.selectedJob,
     status: controller.status,
+    attention: controller.attention,
+    presence: controller.snapshot?.shop?.presence ?? "disconnected",
     notices: controller.snapshot?.notices ?? [],
   };
 }
