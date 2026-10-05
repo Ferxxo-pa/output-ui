@@ -182,8 +182,8 @@ function qualify(shop: ShopRecord, input: QuoteInput, now = Date.now()): QuoteRe
     simulated: true,
     readyBy,
     fulfillment: "pickup",
-    fulfillmentNote: `Pickup at ${shop.name}, ${shop.location}. You pick up. This is not delivery.`,
-    reason: `${shop.name} cuts gloss-white vinyl up to ${shop.usableWidthIn} in, has the material available, and can be ready before the deadline.`,
+    fulfillmentNote: `Pickup at ${shop.name}. Not delivery.`,
+    reason: "Has the vinyl, fits the width, and can make the deadline.",
     checks: [
       "Preset: contour-cut gloss-white vinyl.",
       `Usable width ${shop.usableWidthIn} in. This job is ${input.widthIn.toFixed(2)} in wide.`,

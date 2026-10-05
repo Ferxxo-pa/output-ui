@@ -126,7 +126,7 @@ export function ArtworkPreview({
           aria-label="Artwork preview. The magenta line is the cutline. The original SVG is not inserted into the page."
         />
       </div>
-      <figcaption>Magenta line is the cutline.</figcaption>
+      <figcaption>Cut line</figcaption>
       <button type="button" onClick={onToggle}>
         {expanded ? "Shrink artwork" : "Expand artwork"}
       </button>

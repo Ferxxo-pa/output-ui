@@ -20,9 +20,7 @@ export function DraftPanel({ controller, onPick }: { controller: OutputControlle
         </button>
       </header>
       {snapshot?.banner && <p className="demo-banner">{snapshot.banner}</p>}
-      <p className="spec">
-        SVG contour-cut decals. {MATERIAL_LABEL}, cutline required, 5 MB maximum. PDF and AI files are not accepted.
-      </p>
+      <p className="spec">SVG with a cut line. {MATERIAL_LABEL}. 5 MB. No PDF or AI.</p>
       {!draft.preview && (
         <div className="stack">
           <button type="button" className="primary" onClick={onPick}>
@@ -86,17 +84,15 @@ export function DraftPanel({ controller, onPick }: { controller: OutputControlle
             />
             Finished size is confirmed
           </label>
-          <p className="fine">
-            Material: {MATERIAL_LABEL}. Finish is optional.
-          </p>
           <label className="check">
             <input
               type="checkbox"
               checked={draft.laminate}
               onChange={(event) => updateDraft({ laminate: event.target.checked })}
             />
-            Add {LAMINATE_LABEL.toLowerCase()}
+            {LAMINATE_LABEL}
           </label>
+          <p className="fine">Vinyl is {MATERIAL_LABEL.toLowerCase()}.</p>
           <fieldset>
             <legend>Fulfillment</legend>
             <label className="check">
@@ -119,7 +115,7 @@ export function DraftPanel({ controller, onPick }: { controller: OutputControlle
             </label>
           </fieldset>
           {draft.fulfillment === "pickup" ? (
-            <p>Pickup at {shop?.name ?? "the shop"}, {shop?.location ?? "the shop address"}. You pick up. This is not delivery.</p>
+            <p className="fine">Pickup at {shop?.name ?? "the shop"}. Not delivery.</p>
           ) : (
             <label>
               Destination
@@ -140,7 +136,7 @@ export function DraftPanel({ controller, onPick }: { controller: OutputControlle
           </label>
           {draft.quoting && <p>Checking shops…</p>}
           {!draft.quoting && !draft.quote && !draft.quoteError && (
-            <p className="fine">Add a quantity, confirm the finished size, and set a deadline to see a shop.</p>
+            <p className="fine">Quantity, confirmed size, and a deadline.</p>
           )}
           {draft.quoteError && (
             <div className="err" role="alert">
@@ -155,12 +151,9 @@ export function DraftPanel({ controller, onPick }: { controller: OutputControlle
           {draft.quote && (
             <div className="quote">
               <p className="quote-shop">{draft.quote.shopName}</p>
-              <p>
-                {formatUsdc(draft.quote.priceCents)} ({draft.quote.network})
-              </p>
-              <p>Ready by {formatWhen(draft.quote.readyBy)}</p>
-              <p>{draft.quote.fulfillmentNote}</p>
+              <p>Ready {formatWhen(draft.quote.readyBy)} · {draft.quote.network}</p>
               <p>{draft.quote.reason}</p>
+              <p>{draft.quote.fulfillmentNote}</p>
               <details>
                 <summary>Details</summary>
                 <ul>
@@ -180,7 +173,7 @@ export function DraftPanel({ controller, onPick }: { controller: OutputControlle
           >
             {pending === "request" ? "Requesting…" : amount ? `Request production · ${amount}` : "Request production"}
           </button>
-          <p className="fine">No payment yet. The shop must accept first. Simulated devnet USDC — requesting does not move funds.</p>
+          <p className="fine">No payment yet. The shop must accept first.</p>
         </>
       )}
     </section>

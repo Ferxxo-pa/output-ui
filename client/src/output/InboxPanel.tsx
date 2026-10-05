@@ -1,4 +1,4 @@
-import { formatUsdc, groupJobs, phaseLabel, roleLabel } from "./format";
+import { formatSize, formatUsdc, groupJobs, phaseLabel, roleLabel } from "./format";
 import type { Job, Role } from "./types";
 import type { OutputController } from "./useOutput";
 
@@ -17,7 +17,7 @@ function JobButton({
       <span className="job-copy">
         <span>{roleLabel(role)}</span>
         <span>
-          {job.quantity} contour-cut decals · {phaseLabel(job, role)}
+          {job.quantity} · {formatSize(job.widthIn, job.heightIn)} · {phaseLabel(job, role)}
         </span>
       </span>
       {amount && <span className={amount.tone}>{amount.text}</span>}

@@ -2,10 +2,10 @@ import { formatUsdc, formatWhen, fromLocalInput, toLocalInput } from "./format";
 import type { OutputController } from "./useOutput";
 
 const PRESENCE_COPY = {
-  receiving: "Receiving. New offers can arrive.",
-  paused: "Paused. New offers are stopped. Accepted work stays active.",
-  disconnected: "Disconnected. A missing connection is not the same as having material.",
-  stale: "Capacity is stale. Confirm availability before new work is promised.",
+  receiving: "Receiving new jobs.",
+  paused: "Paused. Accepted work stays.",
+  disconnected: "Disconnected. Connection is not material on the roll.",
+  stale: "Capacity is stale. Confirm it before new work.",
 } as const;
 
 export function ShopPanel({ controller }: { controller: OutputController }) {
@@ -49,10 +49,7 @@ export function ShopPanel({ controller }: { controller: OutputController }) {
         <>
           <h3>{shop.name}</h3>
           <p>{shop.location}</p>
-          <p className="fine">
-            This screen confirms the existing {shop.name} identity ({shop.id}). Opening OUTPUT on another computer must
-            not create a second shop or extra capacity. This demo only remembers that choice in this browser.
-          </p>
+          <p className="fine">Same shop on every computer. Confirming does not create another.</p>
           {shop.confirmed ? (
             <p>Confirmed for this install.</p>
           ) : (
@@ -96,7 +93,7 @@ export function ShopPanel({ controller }: { controller: OutputController }) {
           {shop.capacityStale && shop.presence !== "stale" && (
             <p>Capacity is also stale. Confirm it when you are ready to promise new work.</p>
           )}
-          <p className="fine">Demo session. Being connected here does not mean vinyl is on the roll.</p>
+          <p className="fine">Connected does not mean vinyl is on the roll.</p>
           <button
             type="button"
             className="toggle"
@@ -106,7 +103,7 @@ export function ShopPanel({ controller }: { controller: OutputController }) {
           >
             Receive new jobs: {shop.receiving ? "on" : "off"}
           </button>
-          <p className="fine">Pausing stops new offers. It does not cancel accepted work.</p>
+          <p className="fine">Off stops new offers only.</p>
           <button
             type="button"
             className="toggle"

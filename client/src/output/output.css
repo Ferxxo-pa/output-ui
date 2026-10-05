@@ -248,8 +248,19 @@
 }
 
 .output-panel .phase {
-  margin: 8px 0;
+  margin: 8px 0 0;
   font-weight: 560;
+}
+
+.ticket {
+  margin: 12px 0 0;
+  font-weight: 560;
+  letter-spacing: -0.03em;
+}
+
+.ticket + .fine,
+.fine + .fine {
+  margin-top: 4px;
 }
 
 .spec,
