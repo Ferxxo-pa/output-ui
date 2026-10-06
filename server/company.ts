@@ -1,6 +1,5 @@
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import type { CompanyState } from "@shared/schema";
-import { squareConfigured } from "./square/client";
 
 let company: CompanyState = {
   name: null,
@@ -13,7 +12,6 @@ let onChange: (() => void) | null = null;
 
 export type CompanyView = CompanyState & {
   owner: boolean;
-  square: boolean;
   ownerKey?: string;
 };
 
@@ -56,7 +54,6 @@ export function companyView(presented: string | null): CompanyView {
     code: company.code,
     people: company.people.map((person) => ({ ...person })),
     owner,
-    square: squareConfigured(),
     ...(minted ? { ownerKey: minted } : {}),
   };
 }

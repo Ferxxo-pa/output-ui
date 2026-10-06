@@ -6,7 +6,6 @@ import {
   configSchema,
   personShiftSchema,
   sessionSchema,
-  squareLinkSchema,
   type CompanyState,
 } from "@shared/schema";
 import { earnEngine } from "./clock/engine";
@@ -15,13 +14,18 @@ import { log } from "./vite";
 
 const fileSchema = z.object({
   version: z.literal(1),
-  config: configSchema,
+  config: z.preprocess((value) => {
+    if (value && typeof value === "object" && (value as { clockSource?: string }).clockSource === "square") {
+      return { ...(value as object), clockSource: "local" };
+    }
+    return value;
+  }, configSchema),
   session: sessionSchema,
   shifts: z.array(personShiftSchema).default([]),
-  seen: z.array(z.string()).max(5000).default([]),
-  squareBootstrapped: z.boolean().default(false),
-  rateSource: z.enum(["default", "manual", "square"]).default("default"),
-  square: squareLinkSchema,
+  rateSource: z
+    .enum(["default", "manual", "square"])
+    .default("default")
+    .transform((value) => (value === "square" ? "manual" : value)),
   company: companyStateSchema,
   ownerKey: z.string().nullable().default(null),
 });
@@ -68,10 +72,7 @@ export function loadState() {
       config: parsed.config,
       session: parsed.session,
       shifts: parsed.shifts,
-      seen: parsed.seen,
-      squareBootstrapped: parsed.squareBootstrapped,
       rateSource: parsed.rateSource,
-      square: parsed.square,
     });
     hydrateCompany(parsed.company, parsed.ownerKey);
   } catch (err) {

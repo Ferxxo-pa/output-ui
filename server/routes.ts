@@ -1,13 +1,9 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { configSchema, inputTypeSchema } from "@shared/schema";
-import { addPerson, companyView, createCompany, joinCompany, setPersonRate } from "./company";
+import { addPerson, companyView, createCompany, getCompany, joinCompany, setPersonRate } from "./company";
 import { earnEngine } from "./clock/engine";
 import { startPersistence } from "./persist";
-import { squareConfigured } from "./square/client";
-import { timecardFromWebhook } from "./square/labor";
-import { signaturesMatch, squareSignature } from "./square/signature";
-import { applySquareWebhook, squarePayRoster, startSquareSync } from "./square/sync";
 
 function ownerKeyFrom(req: Request): string | null {
   const value = req.header("x-owner-key");
@@ -20,18 +16,8 @@ function personIdFrom(req: Request): string | null {
   return body || header || null;
 }
 
-async function peopleOnTheBusiness(): Promise<
-  Array<{ id: string; name: string; hourlyCents: number | null }>
-> {
-  if (squareConfigured()) {
-    const squarePeople = await squarePayRoster();
-    return (squarePeople ?? []).map((person) => ({
-      id: person.id,
-      name: person.name,
-      hourlyCents: person.hourlyCents,
-    }));
-  }
-  return companyView(null).people.map((person) => ({
+function peopleOnTheBusiness(): Array<{ id: string; name: string; hourlyCents: number }> {
+  return getCompany().people.map((person) => ({
     id: person.id,
     name: person.name,
     hourlyCents: person.hourlyCents,
@@ -47,7 +33,6 @@ function requireOwner(req: Request) {
 export async function registerRoutes(app: Express): Promise<Server> {
   startPersistence();
   earnEngine.start();
-  startSquareSync();
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true });
@@ -61,9 +46,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const personId = personIdFrom(req);
       if (!personId) throw new Error("Choose who you are");
-      const person = (await peopleOnTheBusiness()).find((entry) => entry.id === personId);
+      const person = peopleOnTheBusiness().find((entry) => entry.id === personId);
       if (!person) throw new Error("That person is not on this business");
-      if (!person.hourlyCents) throw new Error("Square has no hourly wage for that person");
+      if (!person.hourlyCents) throw new Error("Set an hourly rate for that person");
       res.json(
         await earnEngine.clockInPerson({
           id: person.id,
@@ -147,25 +132,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/company/who", async (_req, res) => {
-    try {
-      const people = await peopleOnTheBusiness();
-      res.json({
-        source: squareConfigured() ? "square" : "manual",
-        people: people.map((person) => ({ id: person.id, name: person.name })),
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Couldn't load the team";
-      res.status(400).json({ message });
-    }
+  app.get("/api/company/who", (_req, res) => {
+    const people = peopleOnTheBusiness();
+    res.json({
+      people: people.map((person) => ({ id: person.id, name: person.name })),
+    });
   });
 
-  app.get("/api/company/roster", async (req, res) => {
+  app.get("/api/company/roster", (req, res) => {
     try {
       requireOwner(req);
-      const squarePeople = await squarePayRoster();
-      if (squarePeople) return res.json({ source: "square", people: squarePeople });
-      res.json({ source: "manual", people: companyView(ownerKeyFrom(req)).people });
+      res.json({ people: companyView(ownerKeyFrom(req)).people });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't load the company";
       res.status(message === "Only the owner can change that" ? 403 : 400).json({ message });
@@ -174,7 +151,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/company/people", (req, res) => {
     try {
-      if (squareConfigured()) throw new Error("Square sets the rates");
       requireOwner(req);
       const name = typeof req.body?.name === "string" ? req.body.name : "";
       const hourlyCents = Number(req.body?.hourlyCents);
@@ -190,7 +166,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/company/people/:id", (req, res) => {
     try {
-      if (squareConfigured()) throw new Error("Square sets the rates");
       requireOwner(req);
       const hourlyCents = Number(req.body?.hourlyCents);
       setPersonRate(req.params.id, hourlyCents);
@@ -201,34 +176,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = message === "Only the owner can change that" ? 403 : 400;
       res.status(status).json({ message });
     }
-  });
-
-  app.post("/api/square/webhook", (req, res) => {
-    const key = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
-    const url = process.env.SQUARE_WEBHOOK_NOTIFICATION_URL;
-    if (!key || !url) {
-      return res.status(401).json({ message: "Square webhook is not configured" });
-    }
-
-    const raw = (req as Request & { rawBody?: Buffer }).rawBody?.toString("utf8") ?? "";
-    const header = req.header("x-square-hmacsha256-signature") ?? "";
-    const expected = squareSignature({
-      signatureKey: key,
-      notificationUrl: url,
-      rawBody: raw,
-    });
-    if (!signaturesMatch(header, expected)) {
-      return res.status(403).json({ message: "Invalid Square signature" });
-    }
-
-    const timecard = timecardFromWebhook(req.body);
-    if (timecard) {
-      earnEngine.syncRemoteTimecard(timecard);
-      return res.status(200).json({ ok: true, timecard: true });
-    }
-
-    const result = applySquareWebhook(req.body);
-    res.status(200).json({ ok: true, ...result });
   });
 
   app.use("/api", (_req, res) => {

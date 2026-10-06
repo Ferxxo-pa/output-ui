@@ -4,7 +4,7 @@ import { WHO_ID, useIoState } from "@/hooks/useEarnState";
 import { ching, unlockChing } from "@/lib/ching";
 import type { CompanyState, PrintEvent } from "@shared/schema";
 
-type CompanyView = CompanyState & { owner?: boolean; square?: boolean; ownerKey?: string };
+type CompanyView = CompanyState & { owner?: boolean; ownerKey?: string };
 
 const OWNER_STORE = "io.owner";
 const WHO_NAME = "io.who.name";
@@ -53,7 +53,6 @@ export default function Hud() {
   const [whoOpen, setWhoOpen] = useState(false);
   const [whoMode, setWhoMode] = useState<"clock" | "link">("clock");
   const [team, setTeam] = useState<TeamPerson[]>([]);
-  const [teamSource, setTeamSource] = useState<"square" | "manual">("manual");
   const [youName, setYouName] = useState<string | null>(() => localStorage.getItem(WHO_NAME));
   const [collapsed, setCollapsed] = useState(false);
   const [chips, setChips] = useState(threeColors);
@@ -161,13 +160,12 @@ export default function Hud() {
     setWhoMode(mode);
     setWhoOpen(true);
     const res = await fetch("/api/company/who");
-    const body = (await res.json()) as { people?: TeamPerson[]; source?: "square" | "manual"; message?: string };
+    const body = (await res.json()) as { people?: TeamPerson[]; message?: string };
     if (!res.ok) {
       setTeam([]);
       return;
     }
     setTeam(body.people ?? []);
-    setTeamSource(body.source === "square" ? "square" : "manual");
   };
 
   const choosePerson = (person: TeamPerson) => {
@@ -322,7 +320,6 @@ export default function Hud() {
           {whoOpen && (
             <WhoPanel
               people={team}
-              source={teamSource}
               onChoose={choosePerson}
               onClose={() => setWhoOpen(false)}
             />
@@ -336,12 +333,10 @@ export default function Hud() {
 
 function WhoPanel({
   people,
-  source,
   onChoose,
   onClose,
 }: {
   people: TeamPerson[];
-  source: "square" | "manual";
   onChoose: (person: TeamPerson) => void;
   onClose: () => void;
 }) {
@@ -354,7 +349,7 @@ function WhoPanel({
       transition={{ duration: 0.12 }}
     >
       <div className="settings-head">
-        <span>{source === "square" ? "Square" : "You"}</span>
+        <span>You</span>
         <button type="button" onClick={onClose}>
           Close
         </button>
@@ -366,7 +361,7 @@ function WhoPanel({
       ))}
       {people.length === 0 && (
         <div className="menu-row">
-          <span>{source === "square" ? "Nobody on the Square team yet" : "The owner adds people in Change"}</span>
+          <span>The owner adds people in Change</span>
         </div>
       )}
     </motion.div>
@@ -484,7 +479,6 @@ function ChangePanel({
   onCompany: (next: CompanyView) => void;
 }) {
   const [people, setPeople] = useState<Array<{ id: string; name: string; hourlyCents: number | null }>>([]);
-  const [source, setSource] = useState<"square" | "manual">("manual");
   const [name, setName] = useState("");
   const [rate, setRate] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -496,7 +490,6 @@ function ChangePanel({
         const body = await res.json();
         if (!res.ok) throw new Error(body.message || "Couldn't load people");
         if (cancel) return;
-        setSource(body.source === "square" ? "square" : "manual");
         setPeople(body.people ?? []);
       })
       .catch((err) => {
@@ -567,31 +560,25 @@ function ChangePanel({
           Close
         </button>
       </div>
-      {source === "square" && <p className="pay-source">Square</p>}
       {people.map((person) => (
         <div className="pay-row" key={person.id}>
           <span>{person.name}</span>
-          {source === "square" ? (
-            <span>{person.hourlyCents ? `$${rateText(person.hourlyCents)}/hr` : "—"}</span>
-          ) : (
-            <span className="pay-rate">
-              <span>$</span>
-              <input
-                aria-label={`${person.name} hourly rate`}
-                defaultValue={rateText(person.hourlyCents ?? 2000)}
-                inputMode="decimal"
-                onBlur={(event) => void saveRate(person.id, event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-                }}
-              />
-              <span>/hr</span>
-            </span>
-          )}
+          <span className="pay-rate">
+            <span>$</span>
+            <input
+              aria-label={`${person.name} hourly rate`}
+              defaultValue={rateText(person.hourlyCents ?? 2000)}
+              inputMode="decimal"
+              onBlur={(event) => void saveRate(person.id, event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+              }}
+            />
+            <span>/hr</span>
+          </span>
         </div>
       ))}
-      {source === "manual" && (
-        <form
+      <form
           className="ask"
           onSubmit={(event) => {
             event.preventDefault();
@@ -618,7 +605,6 @@ function ChangePanel({
             }}
           />
         </form>
-      )}
       {error && <div className="err">{error}</div>}
     </motion.div>
   );

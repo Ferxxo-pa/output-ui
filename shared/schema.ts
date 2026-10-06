@@ -6,7 +6,7 @@ import { z } from "zod";
  * O = what you get out (money printed)
  */
 
-export const clockSourceSchema = z.enum(["local", "square"]);
+export const clockSourceSchema = z.enum(["local"]);
 export type ClockSource = z.infer<typeof clockSourceSchema>;
 
 export const printKindSchema = z.enum([
@@ -59,7 +59,7 @@ export const sessionSchema = z.object({
   hourSegmentStartedAt: z.number().nullable(),
   /** Lifetime output printed (cents). The paycheck. */
   outputCents: z.number().int(),
-  /** Square invoices collected for the company. Money in. */
+  /** Money collected for the company. Money in. */
   collectedCents: z.number().int().default(0),
   /** Lifetime input units (actions + optional later weights). */
   inputUnits: z.number().int(),
@@ -68,12 +68,6 @@ export const sessionSchema = z.object({
   externalShiftId: z.string().nullable(),
 });
 export type Session = z.infer<typeof sessionSchema>;
-
-export const squareLinkSchema = z.object({
-  connected: z.boolean(),
-  source: z.enum(["square", "demo"]),
-});
-export type SquareLink = z.infer<typeof squareLinkSchema>;
 
 /** One person's open or closed shift. Wages from every shift add into the company total. */
 export const personShiftSchema = z.object({
@@ -97,7 +91,6 @@ export type Viewer = z.infer<typeof viewerSchema>;
 
 export const appStateSchema = z.object({
   config: configSchema,
-  square: squareLinkSchema,
   session: sessionSchema,
   events: z.array(printEventSchema),
   /** Unrealized output accrued across every open shift. */
@@ -122,7 +115,7 @@ export const boardPersonSchema = z.object({
   name: z.string(),
   points: z.number().int(),
   madeCents: z.number().int(),
-  /** What this person earns per hour, in cents. Square replaces this when connected. */
+  /** What this person earns per hour, in cents. */
   hourlyCents: z.number().int().positive().default(2000),
 });
 export type BoardPerson = z.infer<typeof boardPersonSchema>;

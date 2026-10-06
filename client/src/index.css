@@ -493,12 +493,6 @@ button {
   font-size: 13px;
 }
 
-.pay-source {
-  margin: 12px 0 0;
-  color: var(--mute);
-  font-size: 12px;
-}
-
 .pay-row {
   display: flex;
   align-items: center;

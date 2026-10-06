@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "io-shifts-"));
-delete process.env.SQUARE_ACCESS_TOKEN;
 delete process.env.HOUR_DURATION_MS;
 
 const { earnEngine } = await import("./clock/engine.ts");
@@ -44,53 +43,6 @@ assert.equal(doneBen.session.clockedIn, false);
 assert.equal(doneAda.accruedOutputCents, 0);
 assert.equal(doneAda.session.outputCents, doneBen.session.outputCents);
 assert.ok(doneAda.session.outputCents >= 6000);
-
-earnEngine.syncRemoteTimecard({
-  personId: "TM1",
-  name: "Square",
-  hourlyCents: 1500,
-  timecardId: "card-1",
-  open: true,
-  startedAt: Date.now() - 10,
-});
-assert.equal(earnEngine.getState("TM1").session.clockedIn, true);
-assert.equal(earnEngine.getState("ada").session.clockedIn, false);
-assert.ok(earnEngine.getState("ada").accruedOutputCents >= 0);
-const withSquare = earnEngine.getState("ada");
-assert.equal(withSquare.session.outputCents, earnEngine.getState("TM1").session.outputCents);
-
-earnEngine.syncRemoteTimecard({
-  personId: "TM1",
-  name: "Square",
-  hourlyCents: 1500,
-  timecardId: "card-1",
-  open: false,
-  startedAt: Date.now() - 10,
-});
-assert.equal(earnEngine.getState("TM1").session.clockedIn, false);
-assert.equal(earnEngine.getState("ada").session.clockedIn, false);
-
-earnEngine.syncRemoteTimecard({
-  personId: "TM2",
-  name: "Square",
-  hourlyCents: 1500,
-  timecardId: "card-fresh",
-  open: true,
-  startedAt: Date.now(),
-});
-earnEngine.closeShiftsExcept(new Set());
-assert.equal(earnEngine.getState("TM2").session.clockedIn, true);
-earnEngine.syncRemoteTimecard({
-  personId: "TM3",
-  name: "Square",
-  hourlyCents: 1500,
-  timecardId: "card-old",
-  open: true,
-  startedAt: Date.now() - 60_000,
-});
-earnEngine.closeShiftsExcept(new Set(["card-fresh"]));
-assert.equal(earnEngine.getState("TM2").session.clockedIn, true);
-assert.equal(earnEngine.getState("TM3").session.clockedIn, false);
 
 earnEngine.stop();
 console.log("shifts ok");

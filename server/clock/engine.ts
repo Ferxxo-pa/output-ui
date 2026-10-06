@@ -8,11 +8,7 @@ import {
   type PersonShift,
   type PrintEvent,
   type Session,
-  type SquareLink,
 } from "@shared/schema";
-import type { InvoiceSnapshot } from "../square/parse";
-import { squareConfigured } from "../square/client";
-import { closeTimecard, openTimecard, type RemoteTimecard } from "../square/labor";
 import { createClockAdapter, type ClockAdapter } from "./adapters";
 import { randomUUID } from "crypto";
 
@@ -35,7 +31,7 @@ function makeEvent(
  * Input accrues while clocked in (time) + manual inputs (prompt/email).
  * Output prints on each completed hour segment — the dopamine fill.
  */
-export type RateSource = "default" | "manual" | "square";
+export type RateSource = "default" | "manual";
 
 export type ClockPerson = {
   id: string;
@@ -47,10 +43,7 @@ export type BookSnapshot = {
   config: AppConfig;
   session: Session;
   shifts: PersonShift[];
-  seen: string[];
-  squareBootstrapped: boolean;
   rateSource: RateSource;
-  square: SquareLink;
 };
 
 export class EarnEngine {
@@ -58,12 +51,8 @@ export class EarnEngine {
   session: Session = { ...DEFAULT_SESSION };
   private shifts: PersonShift[] = [];
   events: PrintEvent[] = [];
-  square: SquareLink = { connected: false, source: "demo" };
   private adapter: ClockAdapter = createClockAdapter(this.config.clockSource);
   private timer: ReturnType<typeof setInterval> | null = null;
-  private seenExternal = new Set<string>();
-  private seenOrder: string[] = [];
-  private squareBootstrapped = false;
   private rateSource: RateSource = "default";
   private onChange: (() => void) | null = null;
   private silent = false;
@@ -95,14 +84,10 @@ export class EarnEngine {
   hydrate(snapshot: BookSnapshot) {
     this.silent = true;
     try {
-      this.config = { ...DEFAULT_CONFIG, ...snapshot.config };
+      this.config = { ...DEFAULT_CONFIG, ...snapshot.config, clockSource: "local" };
       this.session = { ...DEFAULT_SESSION, ...snapshot.session };
       this.shifts = (snapshot.shifts ?? []).map((shift) => ({ ...shift }));
-      this.square = { ...snapshot.square };
-      this.rateSource = snapshot.rateSource;
-      this.squareBootstrapped = snapshot.squareBootstrapped;
-      this.seenOrder = snapshot.seen.slice(-4000);
-      this.seenExternal = new Set(this.seenOrder);
+      this.rateSource = snapshot.rateSource === "manual" ? "manual" : "default";
       this.events = [];
       this.adapter = createClockAdapter(this.config.clockSource);
     } finally {
@@ -115,21 +100,8 @@ export class EarnEngine {
       config: { ...this.config },
       session: { ...this.session },
       shifts: this.shifts.map((shift) => ({ ...shift })),
-      seen: this.seenOrder.slice(),
-      squareBootstrapped: this.squareBootstrapped,
       rateSource: this.rateSource,
-      square: { ...this.square },
     };
-  }
-
-  isSquareBootstrapped(): boolean {
-    return this.squareBootstrapped;
-  }
-
-  markSquareBootstrapped() {
-    if (this.squareBootstrapped) return;
-    this.squareBootstrapped = true;
-    this.touch();
   }
 
   getState(viewerId: string | null = null): AppState {
@@ -144,7 +116,6 @@ export class EarnEngine {
     const viewerClockedIn = viewerId ? Boolean(you?.clockedIn) : this.session.clockedIn;
     return {
       config: this.config,
-      square: { ...this.square },
       session: {
         ...this.session,
         outputCents,
@@ -169,7 +140,7 @@ export class EarnEngine {
   }
 
   /**
-   * Clock one person in. When Square is connected this opens their timecard.
+   * Clock one person in.
    * Their wage joins every other open shift on the company total.
    */
   async clockInPerson(person: ClockPerson): Promise<AppState> {
@@ -177,10 +148,7 @@ export class EarnEngine {
       throw new Error("That person is not on this business");
     }
     const existing = this.shifts.find((shift) => shift.personId === person.id);
-    let timecardId = existing?.timecardId ?? null;
-    if (squareConfigured()) {
-      timecardId = await openTimecard(person.id, person.hourlyCents);
-    }
+    const timecardId = existing?.timecardId ?? null;
     if (existing?.clockedIn) {
       this.upsertShift({
         ...existing,
@@ -217,9 +185,6 @@ export class EarnEngine {
   async clockOutPerson(personId: string): Promise<AppState> {
     const existing = this.shifts.find((shift) => shift.personId === personId);
     if (!existing?.clockedIn) return this.getState(personId);
-    if (existing.timecardId && squareConfigured()) {
-      await closeTimecard(existing.timecardId);
-    }
 
     const t = now();
     const settled = this.settleShift(existing, t);
@@ -240,80 +205,6 @@ export class EarnEngine {
       }),
     );
     return this.getState(personId);
-  }
-
-  /**
-   * Drop local shifts whose Square timecard is no longer open.
-   * A shift that just opened is left alone so a slow search cannot clock them out.
-   */
-  closeShiftsExcept(openTimecardIds: Set<string>, at = now()): void {
-    for (const shift of [...this.shifts]) {
-      if (!shift.clockedIn || !shift.timecardId) continue;
-      if (openTimecardIds.has(shift.timecardId)) continue;
-      if (shift.clockedInAt && at - shift.clockedInAt < 20_000) continue;
-      this.syncRemoteTimecard({
-        personId: shift.personId,
-        name: shift.name,
-        hourlyCents: shift.hourlyCents,
-        timecardId: shift.timecardId,
-        open: false,
-        startedAt: shift.clockedInAt ?? at,
-      });
-    }
-  }
-
-  /** A Square timecard opened or closed somewhere else still joins this book. */
-  syncRemoteTimecard(card: RemoteTimecard): void {
-    const existing = this.shifts.find((shift) => shift.personId === card.personId);
-    if (card.open) {
-      if (existing?.clockedIn && existing.timecardId === card.timecardId) return;
-      const started = card.startedAt || now();
-      const hourly =
-        card.hourlyCents > 0
-          ? card.hourlyCents
-          : (existing?.hourlyCents ?? this.config.hourlyOutputCents);
-      this.upsertShift({
-        personId: card.personId,
-        name: existing?.name || card.name || "Square",
-        hourlyCents: hourly,
-        clockedIn: true,
-        clockedInAt: existing?.clockedIn ? existing.clockedInAt : started,
-        hourSegmentStartedAt: existing?.clockedIn ? existing.hourSegmentStartedAt : started,
-        outputCents: existing?.outputCents ?? 0,
-        timecardId: card.timecardId,
-      });
-      if (!existing?.clockedIn) {
-        this.pushEvent(
-          makeEvent({
-            kind: "clock_in",
-            outputCents: 0,
-            inputUnits: 0,
-            label: "IN",
-            createdAt: started,
-          }),
-        );
-      }
-      return;
-    }
-    if (!existing?.clockedIn) return;
-    const t = now();
-    const settled = this.settleShift(existing, t);
-    this.upsertShift({
-      ...settled,
-      clockedIn: false,
-      clockedInAt: null,
-      hourSegmentStartedAt: null,
-      timecardId: null,
-    });
-    this.pushEvent(
-      makeEvent({
-        kind: "clock_out",
-        outputCents: 0,
-        inputUnits: 0,
-        label: "OUT",
-        createdAt: t,
-      }),
-    );
   }
 
   async clockIn(): Promise<AppState> {
@@ -394,79 +285,6 @@ export class EarnEngine {
     this.events = [];
     this.touch();
     return this.getState();
-  }
-
-  /** A Square wage replaces whatever was typed in. Square is the rate once it is connected. */
-  applyWage(cents: number) {
-    if (!Number.isInteger(cents) || cents <= 0) return;
-    const changed =
-      this.square.source !== "square" ||
-      this.rateSource !== "square" ||
-      this.config.hourlyOutputCents !== cents;
-    this.square = { connected: true, source: "square" };
-    this.rateSource = "square";
-    if (this.config.hourlyOutputCents !== cents) {
-      this.config = { ...this.config, hourlyOutputCents: cents };
-    }
-    if (changed) this.touch();
-  }
-
-  /**
-   * A collected Square invoice prints a sale. A sent invoice awards one point.
-   * Personal wages stay on the hour clock — the sale is the shared notification.
-   */
-  ingestSquareInvoice(snapshot: InvoiceSnapshot): { sale: boolean; points: boolean } {
-    const points = snapshot.sent ? this.awardMessage(snapshot.id) : false;
-    const sale = snapshot.collected
-      ? this.celebrateSale(snapshot.id, snapshot.centsPaid, snapshot.title)
-      : false;
-    return { sale, points };
-  }
-
-  /** Remember invoices that already existed so startup does not replay them. */
-  markSquareInvoiceSeen(snapshot: InvoiceSnapshot) {
-    if (snapshot.sent) this.remember(`msg:${snapshot.id}`);
-    if (snapshot.collected) this.remember(`sale:${snapshot.id}`);
-  }
-
-  private awardMessage(id: string): boolean {
-    const key = `msg:${id}`;
-    if (this.seenExternal.has(key)) return false;
-    this.remember(key);
-    this.session = {
-      ...this.session,
-      inputUnits: this.session.inputUnits + 1,
-    };
-    this.pushEvent(
-      makeEvent({
-        kind: "input",
-        outputCents: 0,
-        inputUnits: 1,
-        label: "+1",
-        inputType: "message",
-      }),
-    );
-    return true;
-  }
-
-  private celebrateSale(id: string, cents: number, title?: string): boolean {
-    const key = `sale:${id}`;
-    if (this.seenExternal.has(key)) return false;
-    this.remember(key);
-    this.session = {
-      ...this.session,
-      collectedCents: this.session.collectedCents + Math.max(0, cents),
-    };
-    const label = signedLabel(cents);
-    this.pushEvent(
-      makeEvent({
-        kind: "sale",
-        outputCents: cents,
-        inputUnits: 0,
-        label,
-      }),
-    );
-    return true;
   }
 
   private tick() {
@@ -597,16 +415,6 @@ export class EarnEngine {
   private pushEvent(event: PrintEvent) {
     this.events = [event, ...this.events].slice(0, 100);
     this.touch();
-  }
-
-  private remember(key: string) {
-    if (this.seenExternal.has(key)) return;
-    this.seenExternal.add(key);
-    this.seenOrder.push(key);
-    if (this.seenOrder.length > 4000) {
-      const drop = this.seenOrder.splice(0, this.seenOrder.length - 4000);
-      for (const id of drop) this.seenExternal.delete(id);
-    }
   }
 
   private touch() {
