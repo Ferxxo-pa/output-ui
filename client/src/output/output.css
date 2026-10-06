@@ -1007,24 +1007,6 @@
   line-height: 1.35;
 }
 
-.upload-pop .file-add {
-  display: block;
-  width: 100%;
-  min-height: 36px;
-  padding: 0;
-  background: none;
-  border: 0;
-  text-align: left;
-  font-size: 14px;
-  font-weight: 560;
-}
-
-.upload-pop .fine {
-  margin: 2px 0 0;
-  color: #6e6e73;
-  font-size: 13px;
-}
-
 .upload-pop .offer-top {
   margin-top: 10px;
 }

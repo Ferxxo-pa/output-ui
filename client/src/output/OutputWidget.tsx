@@ -79,8 +79,7 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
 
   function upload() {
     setDetails(false);
-    setUploadError(null);
-    setStage((current) => (current === "send" ? "closed" : "send"));
+    fileRef.current?.click();
   }
 
   async function choose(file: File) {
@@ -184,14 +183,8 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
             {details && <Details job={picked} />}
           </div>
         )}
-        {stage === "send" && (
-          <div className="layer upload-pop" aria-label="Upload a file">
-            {!ready && (
-              <button type="button" className="file-add" disabled={controller.pending !== null} onClick={() => fileRef.current?.click()}>
-                Upload a file
-              </button>
-            )}
-            {!ready && <p className="fine">SVG with a cut line.</p>}
+        {stage === "send" && (ready || uploadError) && (
+          <div className="layer upload-pop" aria-label="Send file">
             {ready && (
               <>
                 <ArtworkPreview model={ready.preview} expanded={false} onToggle={() => undefined} bare />
