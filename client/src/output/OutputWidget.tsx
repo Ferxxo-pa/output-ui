@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { ArtworkPreview } from "./ArtworkPreview";
 import { formatSize, formatWhen, handoff, materialLine, materialUsed } from "./format";
 import { ShopPanel } from "./ShopPanel";
-import type { Job } from "./types";
+import { inspectSvgFile } from "./svg/inspect";
+import type { Job, PreviewModel } from "./types";
 import type { OutputController } from "./useOutput";
 
 type Stage = "closed" | "ledger" | "offer" | "send" | "shop";
+type ReadyFile = { name: string; file: File; preview: PreviewModel };
 
 const WORKING = new Set(["accepted", "funding_pending", "funded", "completion_submitted", "issue"]);
-const APPROVED_TO_SEND = new Set(["accepted", "funding_pending", "funded", "completion_submitted", "issue"]);
 
 function money(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -27,13 +28,11 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
   const [pick, setPick] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [ready, setReady] = useState<ReadyFile | null>(null);
   const jobs = controller.snapshot?.jobs ?? [];
   const offers = jobs.filter((job) => !job.selfOrdered && job.phase === "offered" && !job.expired);
   const working = jobs.filter((job) => !job.selfOrdered && WORKING.has(job.phase));
   const done = jobs.filter((job) => !job.selfOrdered && job.phase === "paid");
-  const registered = jobs.filter((job) => job.selfOrdered && job.phase === "offered" && !job.expired);
-  const approved = jobs.filter((job) => job.selfOrdered && APPROVED_TO_SEND.has(job.phase));
-  const sent = jobs.filter((job) => job.selfOrdered && job.phase === "paid");
   const made = done.reduce((sum, job) => sum + job.payoutCents, 0);
   const picked = offers.find((job) => job.id === pick) ?? offers[0] ?? null;
 
@@ -84,10 +83,29 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
     setStage((current) => (current === "send" ? "closed" : "send"));
   }
 
-  function register(file: File) {
+  async function choose(file: File) {
     setUploadError(null);
+    setReady(null);
     setStage("send");
-    void controller.registerUpload(file).then((message) => setUploadError(message));
+    const inspected = await inspectSvgFile(file);
+    if (!inspected.ok) {
+      setUploadError(inspected.correction);
+      return;
+    }
+    setReady({ name: inspected.fileName.replace(/\.svg$/i, "") || "File", file, preview: inspected.preview });
+  }
+
+  function sendFile() {
+    if (!ready) return;
+    setUploadError(null);
+    void controller.registerUpload(ready.file).then((message) => {
+      if (message) {
+        setUploadError(message);
+        return;
+      }
+      setReady(null);
+      setStage("closed");
+    });
   }
 
   return (
@@ -106,7 +124,7 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
         setDragging(false);
         const file = event.dataTransfer.files?.[0];
         if (!file) return;
-        register(file);
+        void choose(file);
       }}
     >
       <div className="output-shell">
@@ -167,40 +185,25 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
           </div>
         )}
         {stage === "send" && (
-          <div className="layer ledger" aria-label="Upload">
-            <div className="ledger-head">
-              <span>Upload</span>
-            </div>
-            <button
-              type="button"
-              className="file-add"
-              disabled={controller.pending !== null}
-              onClick={() => fileRef.current?.click()}
-            >
-              {controller.pending === "register" ? "Registering…" : "Upload a file"}
-            </button>
+          <div className="layer upload-pop" aria-label="Upload a file">
+            {!ready && (
+              <button type="button" className="file-add" disabled={controller.pending !== null} onClick={() => fileRef.current?.click()}>
+                Upload a file
+              </button>
+            )}
+            {!ready && <p className="fine">SVG with a cut line.</p>}
+            {ready && (
+              <>
+                <ArtworkPreview model={ready.preview} expanded={false} onToggle={() => undefined} bare />
+                <div className="offer-top">
+                  <span className="job-name">{ready.name}</span>
+                  <button type="button" className="accept" disabled={controller.pending !== null} onClick={sendFile}>
+                    {controller.pending === "register" ? "…" : "Send"}
+                  </button>
+                </div>
+              </>
+            )}
             {uploadError && <p className="err">{uploadError}</p>}
-            {registered.map((job) => (
-              <div key={job.id} className="job-row">
-                <span className="job-name">{jobName(job)}</span>
-                <span className="job-mid" />
-                <span className="registered">registered</span>
-              </div>
-            ))}
-            {approved.map((job) => (
-              <div key={job.id} className="job-row">
-                <span className="job-name">{jobName(job)}</span>
-                <span className="job-mid" />
-                <span className="money">{money(job.priceCents)}</span>
-              </div>
-            ))}
-            {sent.map((job) => (
-              <div key={job.id} className="job-row done">
-                <span className="job-name">{jobName(job)}</span>
-                <span className="job-mid" />
-                <span className="money">{money(job.priceCents)}</span>
-              </div>
-            ))}
           </div>
         )}
         {stage === "shop" && <ShopPanel controller={controller} onClose={() => setStage("closed")} />}
@@ -246,7 +249,7 @@ export function OutputWidget({ controller }: { controller: OutputController }) {
           const file = event.target.files?.[0];
           event.target.value = "";
           if (!file) return;
-          register(file);
+          void choose(file);
         }}
       />
     </div>

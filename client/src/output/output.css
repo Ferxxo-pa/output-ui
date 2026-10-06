@@ -1007,10 +1007,10 @@
   line-height: 1.35;
 }
 
-.file-add {
+.upload-pop .file-add {
   display: block;
   width: 100%;
-  min-height: 34px;
+  min-height: 36px;
   padding: 0;
   background: none;
   border: 0;
@@ -1019,10 +1019,19 @@
   font-weight: 560;
 }
 
-.registered {
-  flex: none;
+.upload-pop .fine {
+  margin: 2px 0 0;
   color: #6e6e73;
   font-size: 13px;
+}
+
+.upload-pop .offer-top {
+  margin-top: 10px;
+}
+
+.upload-pop .err {
+  margin: 8px 0 0;
+  font-size: 12px;
 }
 
 .detail .fine {
